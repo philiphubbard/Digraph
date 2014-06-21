@@ -31,10 +31,14 @@ import java.util.ArrayList;
 public abstract class Digraph<E extends Digraph.Edge> {
 	
 	// Constructor.  It can have edges involving vertices with indices
-	// in the range from 0 to vertexCapacity - 1.
+	// in the range from 0 to vertexCapacity - 1.  The EdgeMultiples enum
+	// specifies whether the graph can have more than one edge between
+	// a pair of vertices or not.
 	
-	public Digraph(int vertexCapacity) {
-		allowMultiples = false;
+	public enum EdgeMultiples { ENABLED, DISABLED }
+	
+	public Digraph(int vertexCapacity, EdgeMultiples multiples) {
+		allowMultiples = (multiples == EdgeMultiples.ENABLED);
 		edges = new ArrayList<EdgeLink>(vertexCapacity);
 		for (int i = 0; i < vertexCapacity; i++)
 			edges.add(null);
@@ -114,6 +118,16 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	
 	public int vertexCapacity() {
 		return edges.size();
+	}
+	
+	// Whether the graph can have more than one edge between
+	// a pair of vertices or not.
+	
+	public EdgeMultiples edgeMultiples() {
+		if (allowMultiples)
+			return EdgeMultiples.ENABLED;
+		else
+			return EdgeMultiples.DISABLED;
 	}
 	
 	// The number of edges directed out from the specified vertex.

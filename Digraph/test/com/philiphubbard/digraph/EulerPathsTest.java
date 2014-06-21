@@ -33,8 +33,17 @@ public class EulerPathsTest {
 
 	public static void test() {
 		System.out.println("Testing EulerPaths:");
+		
+		testSimple();
+		testMultiples();
 
-		BasicDigraph graph = new BasicDigraph(10);
+		System.out.println("EulerPaths passed.");
+	}
+
+	private static void testSimple() {
+		System.out.println("Testing EulerPaths in a simple graph:");
+
+		BasicDigraph graph = new BasicDigraph(10, Digraph.EdgeMultiples.DISABLED);
 		
 		graph.addEdge(0, new BasicDigraph.Edge(1));
 		graph.addEdge(0, new BasicDigraph.Edge(5));
@@ -62,6 +71,10 @@ public class EulerPathsTest {
 			System.out.print(v + " ");
 		System.out.print("\n");
 
+		// An Euler tour of a graph with loops may visit the vertices in more than one order.
+		// So instead of checking for a particular order, verify that the vertices were
+		// visited the correct number of times.
+		
 		assert (path0.size() == 11);
 		int[] path0VertexCounts = new int[10];
 		for (int v = 0; v < 10; v++)
@@ -102,7 +115,88 @@ public class EulerPathsTest {
 		assert (path1VertexCounts[8] == 1);
 		assert (path1VertexCounts[9] == 1);
 
-		System.out.println("EulerPaths passed.");
+		System.out.println("EulerPaths in a simple graph passed.");
 	}
-	
+
+	private static void testMultiples() {
+		System.out.println("Testing EulerPaths with edge multiples:");
+
+		BasicDigraph graph = new BasicDigraph(7, Digraph.EdgeMultiples.ENABLED);
+		
+		graph.addEdge(0, new BasicDigraph.Edge(1));
+		
+		graph.addEdge(1, new BasicDigraph.Edge(2));
+		graph.addEdge(2, new BasicDigraph.Edge(3));
+		graph.addEdge(3, new BasicDigraph.Edge(4));
+		graph.addEdge(4, new BasicDigraph.Edge(1));
+		
+		graph.addEdge(1, new BasicDigraph.Edge(2));
+		graph.addEdge(2, new BasicDigraph.Edge(3));
+		graph.addEdge(3, new BasicDigraph.Edge(4));
+		graph.addEdge(4, new BasicDigraph.Edge(1));
+		
+		graph.addEdge(1, new BasicDigraph.Edge(2));
+		graph.addEdge(2, new BasicDigraph.Edge(5));
+		graph.addEdge(5, new BasicDigraph.Edge(1));
+
+		graph.addEdge(1, new BasicDigraph.Edge(2));
+		graph.addEdge(2, new BasicDigraph.Edge(5));
+		graph.addEdge(5, new BasicDigraph.Edge(1));
+
+		graph.addEdge(1, new BasicDigraph.Edge(2));
+		graph.addEdge(2, new BasicDigraph.Edge(6));
+
+		graph.addEdge(6, new BasicDigraph.Edge(0));
+
+		EulerPaths<BasicDigraph.Edge> euler = new EulerPaths<BasicDigraph.Edge>(graph);
+		ArrayList<ArrayDeque<Integer>> paths = euler.paths();
+		
+		assert (paths.size() == 1);
+
+		ArrayDeque<Integer> path = paths.get(0);
+		assert (path.size() == 19);
+		
+		// Verify that the vertices were visited the correct number of times.
+		
+		int[] pathVertexCounts = new int[7];
+		for (int i = 0; i < 7; i++)
+			pathVertexCounts[i] = 0;
+		
+		int vPrev = 0;
+		for (int v : path) {
+			pathVertexCounts[v]++;
+			
+			// Also verify that vertex 2 is visited only as part of edge 1-2,
+			// and vertex 4 as part of edge 3-4.
+
+			if (v == 2)
+				assert (vPrev == 1);
+			else if (v == 4)
+				assert (vPrev == 3);
+			
+			vPrev = v;
+		}
+		
+		// The starting vertex occurs at the beginning and end.
+		assert (pathVertexCounts[0] == 2);
+		
+		// Edge 1-2 occurs 5 times.
+		assert (pathVertexCounts[1] == 5);
+		assert (pathVertexCounts[2] == 5);
+		
+		// Edge 3-4 occurs 2 times.
+		assert (pathVertexCounts[3] == 2);
+		assert (pathVertexCounts[4] == 2);
+		
+		assert (pathVertexCounts[5] == 2);
+		
+		assert (pathVertexCounts[6] == 1);
+		
+		for (int v : path) 
+			System.out.print(v + " ");
+		System.out.print("\n");
+		
+		System.out.println("EulerPaths with edge multiples passed.");
+	}
+
 }

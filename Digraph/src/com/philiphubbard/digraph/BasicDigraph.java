@@ -38,8 +38,8 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 	// Constructor.  Vertices can be added with indices in the range
 	// from 0 to vertexCapacity - 1.
 	
-	public BasicDigraph(int vertexCapacity) {
-		super(vertexCapacity);
+	public BasicDigraph(int vertexCapacity, EdgeMultiples multiples) {
+		super(vertexCapacity, multiples);
 	}
 	
 	// Add an edge from the specified vertex pointing to another vertex.

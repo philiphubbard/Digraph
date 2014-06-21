@@ -31,7 +31,19 @@ public class BasicDigraphTest {
 	public static void test() {
 		System.out.println("Testing BasicDigraph:");
 		
-		BasicDigraph graph0 = new BasicDigraph(0);
+		testSimple(Digraph.EdgeMultiples.DISABLED);
+		testSimple(Digraph.EdgeMultiples.ENABLED);
+		testMultiples();
+
+		System.out.println("BasicDigraph passed.");
+	}
+	
+	private static void testSimple(Digraph.EdgeMultiples multiples) {
+		System.out.println("Testing simple BasicDigraph behaviors (edge multiples "
+							+ (multiples == Digraph.EdgeMultiples.ENABLED ? "enabled" : "disabled")
+							+ "):");
+		
+		BasicDigraph graph0 = new BasicDigraph(0, multiples);
 		assert (graph0.vertexCapacity() == 0);
 		
 		// Trying to get an adjacency iterator for a vertex that is outside the
@@ -58,16 +70,16 @@ public class BasicDigraphTest {
 		}
 		assert (failedAsExpected);
 
-		BasicDigraph graph1 = new BasicDigraph(10);
+		BasicDigraph graph1 = new BasicDigraph(10, multiples);
 		assert (graph1.vertexCapacity() == 10);
 		
 		graph1.addEdge(0, new BasicDigraph.Edge(2));
 		graph1.addEdge(0, new BasicDigraph.Edge(3));
-		graph1.addEdge(2,  new BasicDigraph.Edge(3));
+		graph1.addEdge(2, new BasicDigraph.Edge(3));
 		
-		BasicDigraph.AdjacencyIterator it1 = graph1.createAdjacencyIterator(0);
+		BasicDigraph.AdjacencyIterator it0 = graph1.createAdjacencyIterator(0);
 		int numEdges0 = 0;
-		for (BasicDigraph.Edge edge = it1.begin(); !it1.done(); edge = it1.next()) {
+		for (BasicDigraph.Edge edge = it0.begin(); !it0.done(); edge = it0.next()) {
 			assert ((edge.getTo() == 2) || (edge.getTo() == 3));
 			numEdges0++;
 		}
@@ -77,9 +89,9 @@ public class BasicDigraphTest {
 		// the graph's capacity even if that vertex has not been added, and that
 		// iterator does nothing.
 		
-		BasicDigraph.AdjacencyIterator it2 = graph1.createAdjacencyIterator(1);
+		BasicDigraph.AdjacencyIterator it1 = graph1.createAdjacencyIterator(1);
 		int numEdges1 = 0;
-		for (it2.begin(); !it2.done(); it2.next())
+		for (it1.begin(); !it1.done(); it1.next())
 			numEdges1++;
 		assert (numEdges1 == 0);
 		
@@ -90,7 +102,45 @@ public class BasicDigraphTest {
 		assert (graph1.inDegree(3) == 2);
 		assert (graph1.outDegree(3) == 0);
 
-		System.out.println("BasicDigraph passed.");
+		System.out.println("BasicDigraph simple behaviors passed.");
 	}
 	
+	private static void testMultiples() {
+		System.out.println("Testing BasicDigraph edge multiples");
+
+		BasicDigraph graph = new BasicDigraph(10, BasicDigraph.EdgeMultiples.ENABLED);
+		
+		graph.addEdge(0, new BasicDigraph.Edge(1));
+		graph.addEdge(1, new BasicDigraph.Edge(2));
+		graph.addEdge(2, new BasicDigraph.Edge(1));
+		graph.addEdge(2, new BasicDigraph.Edge(3));
+		graph.addEdge(2, new BasicDigraph.Edge(3));
+		
+		BasicDigraph.AdjacencyIterator it0 = graph.createAdjacencyIterator(0);
+		int numEdges0 = 0;
+		for (it0.begin(); !it0.done(); it0.next())
+			numEdges0++;
+		assert (numEdges0 == 1);
+		
+		BasicDigraph.AdjacencyIterator it1 = graph.createAdjacencyIterator(1);
+		int numEdges1 = 0;
+		for (it1.begin(); !it1.done(); it1.next())
+			numEdges1++;
+		assert (numEdges1 == 1);
+		
+		BasicDigraph.AdjacencyIterator it2 = graph.createAdjacencyIterator(2);
+		int numEdges2 = 0;
+		for (it2.begin(); !it2.done(); it2.next())
+			numEdges2++;
+		assert (numEdges2 == 3);
+		
+		BasicDigraph.AdjacencyIterator it3 = graph.createAdjacencyIterator(3);
+		int numEdges3 = 0;
+		for (it3.begin(); !it3.done(); it3.next())
+			numEdges3++;
+		assert (numEdges3 == 0);
+		
+		System.out.println("BasicDigraph edge multiples passed.");
+	}
+
 }
