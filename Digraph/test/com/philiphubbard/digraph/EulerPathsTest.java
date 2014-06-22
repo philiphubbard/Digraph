@@ -61,7 +61,7 @@ public class EulerPathsTest {
 		graph.addEdge(9, new BasicDigraph.Edge(7));
 		
 		EulerPaths<BasicDigraph.Edge> euler = new EulerPaths<BasicDigraph.Edge>(graph);
-		ArrayList<ArrayDeque<Integer>> paths = euler.paths();
+		ArrayList<ArrayDeque<Integer>> paths = euler.getPaths();
 		
 		assert (paths.size() == 2);
 		
@@ -149,7 +149,7 @@ public class EulerPathsTest {
 		graph.addEdge(6, new BasicDigraph.Edge(0));
 
 		EulerPaths<BasicDigraph.Edge> euler = new EulerPaths<BasicDigraph.Edge>(graph);
-		ArrayList<ArrayDeque<Integer>> paths = euler.paths();
+		ArrayList<ArrayDeque<Integer>> paths = euler.getPaths();
 		
 		assert (paths.size() == 1);
 

@@ -116,14 +116,14 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	// The graph can have vertices with indices in the range from 
 	// 0 to vertexCapacity() - 1.
 	
-	public int vertexCapacity() {
+	public int getVertexCapacity() {
 		return edges.size();
 	}
 	
 	// Whether the graph can have more than one edge between
 	// a pair of vertices or not.
 	
-	public EdgeMultiples edgeMultiples() {
+	public EdgeMultiples getEdgeMultiples() {
 		if (allowMultiples)
 			return EdgeMultiples.ENABLED;
 		else
@@ -133,8 +133,8 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	// The number of edges directed out from the specified vertex.
 	// Throws IndexOutOfBoundsException if the vertex is out of range.
 	
-	public int outDegree(int from) throws IndexOutOfBoundsException {
-		if ((from < 0) || (vertexCapacity() <= from))
+	public int getOutDegree(int from) throws IndexOutOfBoundsException {
+		if ((from < 0) || (getVertexCapacity() <= from))
 			throw new IndexOutOfBoundsException("Digraph.outDegree() " +
 											    "vertex out of range");
 		cacheDegrees();
@@ -144,8 +144,8 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	// The number of edges directed in to the specified vertex.
 	// Throws IndexOutOfBoundsException if the vertex is out of range.
 	
-	public int inDegree(int to) throws IndexOutOfBoundsException {
-		if ((to < 0) || (vertexCapacity() <= to))
+	public int getInDegree(int to) throws IndexOutOfBoundsException {
+		if ((to < 0) || (getVertexCapacity() <= to))
 			throw new IndexOutOfBoundsException("Digraph.inDegree() " +
 											    "vertex out of range");
 		cacheDegrees();

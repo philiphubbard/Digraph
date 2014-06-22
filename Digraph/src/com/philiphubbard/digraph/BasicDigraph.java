@@ -78,7 +78,7 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 	
 	public AdjacencyIterator createAdjacencyIterator(int from) 
 			throws IndexOutOfBoundsException {
-		if ((from < 0) || (vertexCapacity() <= from))
+		if ((from < 0) || (getVertexCapacity() <= from))
 			throw new IndexOutOfBoundsException("BasicDigraph.createAdjacencyIterator() " +
 											    "vertex out of range");
 		return new AdjacencyIterator(this, from);

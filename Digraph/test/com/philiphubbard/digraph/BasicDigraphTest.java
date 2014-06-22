@@ -44,7 +44,7 @@ public class BasicDigraphTest {
 							+ "):");
 		
 		BasicDigraph graph0 = new BasicDigraph(0, multiples);
-		assert (graph0.vertexCapacity() == 0);
+		assert (graph0.getVertexCapacity() == 0);
 		
 		// Trying to get an adjacency iterator for a vertex that is outside the
 		// graph's capacity throws an exception.
@@ -71,7 +71,7 @@ public class BasicDigraphTest {
 		assert (failedAsExpected);
 
 		BasicDigraph graph1 = new BasicDigraph(10, multiples);
-		assert (graph1.vertexCapacity() == 10);
+		assert (graph1.getVertexCapacity() == 10);
 		
 		graph1.addEdge(0, new BasicDigraph.Edge(2));
 		graph1.addEdge(0, new BasicDigraph.Edge(3));
@@ -95,12 +95,12 @@ public class BasicDigraphTest {
 			numEdges1++;
 		assert (numEdges1 == 0);
 		
-		assert (graph1.inDegree(0) == 0);
-		assert (graph1.outDegree(0) == 2);
-		assert (graph1.inDegree(2) == 1);
-		assert (graph1.outDegree(2) == 1);
-		assert (graph1.inDegree(3) == 2);
-		assert (graph1.outDegree(3) == 0);
+		assert (graph1.getInDegree(0) == 0);
+		assert (graph1.getOutDegree(0) == 2);
+		assert (graph1.getInDegree(2) == 1);
+		assert (graph1.getOutDegree(2) == 1);
+		assert (graph1.getInDegree(3) == 2);
+		assert (graph1.getOutDegree(3) == 0);
 
 		System.out.println("BasicDigraph simple behaviors passed.");
 	}

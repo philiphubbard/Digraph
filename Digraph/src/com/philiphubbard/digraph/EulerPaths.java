@@ -48,15 +48,15 @@ public class EulerPaths <E extends Digraph.Edge> {
 	public EulerPaths(Digraph<E> graph) {
 		this.graph = graph;
 		
-		its = new ArrayList<Digraph<E>.AdjacencyIterator>(graph.vertexCapacity());
+		its = new ArrayList<Digraph<E>.AdjacencyIterator>(graph.getVertexCapacity());
 		traceStack = new Stack<Integer>();
 		output = new ArrayList<ArrayDeque<Integer>>();
 
-		for (int i = 0; i < graph.vertexCapacity(); i++)
+		for (int i = 0; i < graph.getVertexCapacity(); i++)
 			its.add(null);
 		
-		for (int i = 0; i < graph.vertexCapacity(); i++) {
-			if (graph.outDegree(i) > 0) {
+		for (int i = 0; i < graph.getVertexCapacity(); i++) {
+			if (graph.getOutDegree(i) > 0) {
 				Digraph<E>.AdjacencyIterator it = its.get(i);
 				if ((it == null) || (!it.done())) {
 					int v = i;
@@ -75,7 +75,7 @@ public class EulerPaths <E extends Digraph.Edge> {
 	
 	// Return the tours computed in the constructor.
 	
-	public ArrayList<ArrayDeque<Integer>> paths() {
+	public ArrayList<ArrayDeque<Integer>> getPaths() {
 		return this.output;
 	}
 	
