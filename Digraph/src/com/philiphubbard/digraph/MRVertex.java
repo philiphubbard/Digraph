@@ -34,7 +34,7 @@ public class MRVertex {
 	
 	// A special identifier representing no vertex.
 	
-	static int NO_VERTEX = -1;
+	static final int NO_VERTEX = -1;
 	
 	public static boolean getAllowEdgeMultiples() {
 		return allowEdgeMultiples;
@@ -86,8 +86,8 @@ public class MRVertex {
 	// those edges and the edges pointing from other vertices to this
 	// vertex.
 
-	public static String FORMAT_TO_EDGES = "t";
-	public static String FORMAT_TO_FROM_EDGES = "b";
+	public static final String FORMAT_TO_EDGES = "t";
+	public static final String FORMAT_TO_FROM_EDGES = "b";
 	
 	public Text toText(String format) {
 		StringBuilder s = new StringBuilder();
@@ -229,10 +229,10 @@ public class MRVertex {
 		EdgeLink next;
 	}
 	
-	private static String SEPARATOR = ",";
+	private static final String SEPARATOR = ",";
 	private static boolean allowEdgeMultiples = true;
 	private int id;
-	private static int INDEX_TO_EDGES = 0;
-	private static int INDEX_FROM_EDGES = 1;
+	private static final int INDEX_TO_EDGES = 0;
+	private static final int INDEX_FROM_EDGES = 1;
 	private EdgeLink[] edges;
 }
