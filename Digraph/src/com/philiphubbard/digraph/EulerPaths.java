@@ -76,7 +76,7 @@ public class EulerPaths <E extends Digraph.Edge> {
 	// Return the tours computed in the constructor.
 	
 	public ArrayList<ArrayDeque<Integer>> getPaths() {
-		return this.output;
+		return output;
 	}
 	
 	//
