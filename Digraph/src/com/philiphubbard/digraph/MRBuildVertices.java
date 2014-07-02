@@ -23,6 +23,9 @@
 package com.philiphubbard.digraph;
 
 import com.philiphubbard.digraph.MRVertex;
+import com.philiphubbard.digraph.MREdge;
+
+// HEY!! Change name to MRPartitionBranchVertices? No, since partitioning is optional?
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,15 +33,55 @@ import java.util.ArrayList;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 // A mapper and reducer for a Hadoop map-reduce algorithm to collect the edges associated
 // with a vertex, turning vertex descriptions with only the edges pointing out from the
 // vertex into vertex descriptions that also include the edges pointing in from other
 // vertices.
 
-public class MRCollectVertexEdges {
+public class MRBuildVertices {
 
 	// TODO: Consider switching from int to long for vertex identifiers.
+	
+	// Pass null for branchOutput and chainOutput to turn off partitioning.
+	public static void setupOutput(Job job, String outputBranch, String outputChain) {
+		if ((outputBranch != null) && (outputChain != null)) {
+			partitionBranchesChains = true;
+			branchOutput = outputBranch;
+			chainOutput = outputChain;
+			MultipleOutputs.addNamedOutput(job, branchOutput, TextOutputFormat.class, 
+					IntWritable.class, Text.class);
+			MultipleOutputs.addNamedOutput(job, chainOutput, TextOutputFormat.class,
+					IntWritable.class, Text.class);
+		}
+		else {
+			partitionBranchesChains = false;
+		}
+	}
+	
+	public static String chainOutput() {
+		return chainOutput;
+	}
+	
+	public static String branchOutput() {
+		return chainOutput;
+	}
+	
+	
+	public static boolean getPartitionBranchesChains() {
+		return partitionBranchesChains;
+	}
+	
+	public static void setIncludeFromEdges(boolean doInclude) {
+		includeFromEdges = doInclude;
+	}
+	
+	public static boolean getIncludeFromEdges() {
+		return includeFromEdges;
+	}
 	
 	// The mapper.  An input tuple has a key that is a long, the line in the input file,
 	// and a value that is Text.  That value is processed by the verticesFromInputValue()
@@ -50,7 +93,7 @@ public class MRCollectVertexEdges {
 	extends org.apache.hadoop.mapreduce.Mapper<LongWritable, Text, IntWritable, Text> {
 
 		// By default, this function assumes that the Text value is what would be produced
-		// by MRVertex.toText(MRVerte.FORMAT_TO_EDGES).  Derived classes can override this
+		// by MRVertex.toText(MRVerte.FORMAT_EDGES_TO).  Derived classes can override this
 		// function to take a Text value of a different format, as long as it is convertable
 		// to one or more MRVertex instances.
 		
@@ -59,23 +102,22 @@ public class MRCollectVertexEdges {
 			result.add(new MRVertex(value));
 			return result;
 		}
-		
+				
 		// The actual mapping function.
 		
-		public void map(LongWritable key, Text value, Context context) 
+		// HEY!! According to 2.2.0 doc, this function is protected?  If so, change other uses.
+		
+		protected void map(LongWritable key, Text value, Context context) 
 				throws IOException, InterruptedException {
 			ArrayList<MRVertex> vertices = verticesFromInputValue(value);
 			for (MRVertex vertex : vertices) {
-				context.write(new IntWritable(vertex.id()), 
-							  vertex.toText(MRVertex.FORMAT_TO_EDGES));
+				context.write(new IntWritable(vertex.getId()), 
+							  vertex.toText(MRVertex.FORMAT_EDGES_TO));
 				
 				MRVertex.AdjacencyIterator itTo = vertex.createToAdjacencyIterator();
 				for (int toId = itTo.begin(); !itTo.done(); toId = itTo.next()) {
-					MRVertex to = new MRVertex(toId);
-					to.addEdgeFrom(vertex.id());
-					
-					context.write(new IntWritable(toId), 
-								  to.toText(MRVertex.FORMAT_TO_FROM_EDGES));
+					MREdge edge = new MREdge(vertex.getId(), toId);
+					context.write(new IntWritable(toId), edge.toText());
 				}
 			}
 		}
@@ -89,17 +131,61 @@ public class MRCollectVertexEdges {
 	
 	public static class Reducer 
 	extends org.apache.hadoop.mapreduce.Reducer<IntWritable, Text, IntWritable, Text> {
-
-		public void reduce(IntWritable key, Iterable<Text> values, Context context) 
+		
+		// HEY!! According to 2.2.0 doc, this function is protected?  If so, change other uses.
+		
+		protected void reduce(IntWritable key, Iterable<Text> values, Context context) 
 				throws IOException, InterruptedException {
-			MRVertex vertex = new MRVertex(key.get());
+			
+			ArrayList<MREdge> edges = new ArrayList<MREdge>();
+			MRVertex vertex = null;
+			
 			for (Text text : values) {
-				MRVertex other = new MRVertex(text);
-				vertex.merge(other);
+				if (MRVertex.getIsMRVertex(text))
+					vertex = new MRVertex(text);
+				else if (MREdge.getIsMREdge(text))
+					edges.add(new MREdge(text));
 			}
 			
-			context.write(key, vertex.toText(MRVertex.FORMAT_TO_FROM_EDGES));
+			if (vertex != null) {
+				for (MREdge edge : edges)
+					vertex.addEdge(edge);
+				
+				String format = includeFromEdges ? MRVertex.FORMAT_EDGES_TO_FROM : 
+					MRVertex.FORMAT_EDGES_TO;
+				Text text = vertex.toText(format);
+				
+				if (partitionBranchesChains) {
+					if (MRVertex.getIsBranch(text))
+						multipleOutputs.write(branchOutput, key, text);
+					else
+						multipleOutputs.write(chainOutput, key, text);
+				}
+				else {
+					context.write(key, text);
+				}
+			}
+			
 		}
-	}
+		
+		protected void setup(Context context)
+	            throws IOException, InterruptedException {
+			multipleOutputs = new MultipleOutputs<IntWritable, Text>(context);
+		}
 
+		protected void cleanup(Context context)
+	            throws IOException, InterruptedException {
+			multipleOutputs.close();
+		}
+		
+		private MultipleOutputs<IntWritable, Text> multipleOutputs = null;
+
+	}
+	
+    private static boolean partitionBranchesChains = false;
+    private static boolean includeFromEdges = false;
+
+    private static String branchOutput;
+    private static String chainOutput;
+    
 }

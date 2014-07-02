@@ -22,10 +22,10 @@
 
 package com.philiphubbard.digraph;
 
-// A sample driver application for running the MRCollectVertexEdges class
+// A sample driver application for running the MRBuildVertices class
 // with Hadoop.
 
-import com.philiphubbard.digraph.MRCollectVertexEdges;
+import com.philiphubbard.digraph.MRBuildVertices;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -36,7 +36,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
-public class MRCollectVertexEdgesTest {
+public class MRBuildVerticesTest {
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
@@ -47,12 +47,14 @@ public class MRCollectVertexEdgesTest {
 		}
 		
 		Job job = Job.getInstance(conf);
-		job.setJobName("mrcollectvertexedgestest");
+		job.setJobName("mrbuildverticestest");
 		
-		job.setJarByClass(MRCollectVertexEdges.class);
-		job.setMapperClass(MRCollectVertexEdges.Mapper.class);
-		job.setCombinerClass(MRCollectVertexEdges.Reducer.class);
-		job.setReducerClass(MRCollectVertexEdges.Reducer.class);
+		// HEY!! Put some/all of the following in a static MRBuildVertices setup routine?
+		
+		job.setJarByClass(MRBuildVertices.class);
+		job.setMapperClass(MRBuildVertices.Mapper.class);
+		job.setCombinerClass(MRBuildVertices.Reducer.class);
+		job.setReducerClass(MRBuildVertices.Reducer.class);
 		
 		job.setMapOutputKeyClass(IntWritable.class);
         job.setMapOutputValueClass(Text.class);
@@ -61,6 +63,12 @@ public class MRCollectVertexEdgesTest {
 		
 		FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
 		FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
+		
+		// HEY!!
+		MRBuildVertices.setupOutput(job, "branch", "chain");
+		
+		// HEY!!
+		//MRBuildVertices.setIncludeFromEdges(true);
 		
 		System.exit(job.waitForCompletion(true) ? 0 : 1);
 	}

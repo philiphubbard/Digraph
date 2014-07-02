@@ -34,10 +34,10 @@ public class MRVertexTest {
 	public static void test() {
 		System.out.println("Testing MRVertex:");
 
-		//
+		MRVertex.setAllowEdgeMultiples(false);
 		
 		MRVertex v0 = new MRVertex(0);
-		assert (v0.id() == 0);
+		assert (v0.getId() == 0);
 		
 		MRVertex.AdjacencyIterator toIt0 = v0.createToAdjacencyIterator();
 		int to0 = 0;
@@ -54,9 +54,11 @@ public class MRVertexTest {
 		//
 		
 		MRVertex v1 = new MRVertex(1);
-		assert (v1.id() == 1);
+		assert (v1.getId() == 1);
 		
 		v1.addEdgeTo(0);
+		v1.addEdgeTo(2);
+		// The second edge 1->2 will be ignored.
 		v1.addEdgeTo(2);
 		v1.addEdgeFrom(3);
 		
@@ -78,10 +80,47 @@ public class MRVertexTest {
 		
 		//
 		
-		Text text0a = v0.toText(MRVertex.FORMAT_TO_EDGES);
+		MRVertex.setAllowEdgeMultiples(true);		
+		
+		MRVertex v2 = new MRVertex(2);
+		assert (v2.getId() == 2);
+		
+		v2.addEdgeTo(0);
+		v2.addEdgeTo(1);
+		// The second edge 2->1 will be preserved.
+		v2.addEdgeTo(1);
+		v2.addEdgeFrom(4);
+		v2.addEdgeFrom(5);
+		v2.addEdgeFrom(5);
+		v2.addEdgeFrom(6);
+
+		MRVertex.AdjacencyIterator toIt2 = v2.createToAdjacencyIterator();
+		int to2 = 0;
+		for (int to = toIt2.begin(); !toIt2.done(); to = toIt2.next()) {
+			assert ((to == 0) || (to == 1));
+			to2++;
+		}
+		assert (to2 == 3);
+
+		MRVertex.AdjacencyIterator fromIt2 = v2.createFromAdjacencyIterator();
+		int from2 = 0;
+		for (int from = fromIt2.begin(); !fromIt2.done(); from = fromIt2.next()) {
+			assert ((from == 4) || (from == 5) || (from == 6));
+			from2++;
+		}
+		assert (from2 == 4);
+		
+		//
+		
+		Text textNotVertex = new Text("Not a vertex");
+		assert (!MRVertex.getIsMRVertex(textNotVertex));
+		
+		Text text0a = v0.toText(MRVertex.FORMAT_EDGES_TO);
+		assert (MRVertex.getIsMRVertex(text0a));
+		assert (MRVertex.getIsBranch(text0a) == false);
 		MRVertex v0a = new MRVertex(text0a);
 
-		assert (v0a.id() == 0);
+		assert (v0a.getId() == 0);
 		
 		MRVertex.AdjacencyIterator toIt0a = v0a.createToAdjacencyIterator();
 		int to0a = 0;
@@ -97,10 +136,12 @@ public class MRVertexTest {
 
 		//
 		
-		Text text0b = v0.toText(MRVertex.FORMAT_TO_FROM_EDGES);
+		Text text0b = v0.toText(MRVertex.FORMAT_EDGES_TO_FROM);
+		assert (MRVertex.getIsMRVertex(text0b));
+		assert (MRVertex.getIsBranch(text0b) == false);
 		MRVertex v0b = new MRVertex(text0b);
 
-		assert (v0b.id() == 0);
+		assert (v0b.getId() == 0);
 		
 		MRVertex.AdjacencyIterator toIt0b = v0b.createToAdjacencyIterator();
 		int to0b = 0;
@@ -116,7 +157,9 @@ public class MRVertexTest {
 
 		//
 
-		Text text1a = v1.toText(MRVertex.FORMAT_TO_EDGES);
+		Text text1a = v1.toText(MRVertex.FORMAT_EDGES_TO);
+		assert (MRVertex.getIsMRVertex(text1a));
+		assert (MRVertex.getIsBranch(text1a) == true);
 		MRVertex v1a = new MRVertex(text1a);
 
 		MRVertex.AdjacencyIterator toIt1a = v1a.createToAdjacencyIterator();
@@ -136,7 +179,9 @@ public class MRVertexTest {
 		
 		//
 
-		Text text1b = v1.toText(MRVertex.FORMAT_TO_FROM_EDGES);
+		Text text1b = v1.toText(MRVertex.FORMAT_EDGES_TO_FROM);
+		assert (MRVertex.getIsMRVertex(text1b));
+		assert (MRVertex.getIsBranch(text1b) == true);
 		MRVertex v1b = new MRVertex(text1b);
 
 		MRVertex.AdjacencyIterator toIt1b = v1b.createToAdjacencyIterator();
@@ -156,6 +201,135 @@ public class MRVertexTest {
 		assert (from1b == 1);
 		
 		//
+		
+		MRVertex v3 = new MRVertex(3);
+		v3.addEdgeTo(1);
+		
+		Text text3a = v3.toText(MRVertex.FORMAT_EDGES_TO);
+		assert (MRVertex.getIsBranch(text3a) == false);
+		
+		Text text3b = v3.toText(MRVertex.FORMAT_EDGES_TO_FROM);
+		assert (MRVertex.getIsBranch(text3b) == false);
+		
+		MRVertex v4 = new MRVertex(4);
+		v4.addEdgeTo(2);
+		v4.addEdgeFrom(7);
+		
+		Text text4a = v4.toText(MRVertex.FORMAT_EDGES_TO);
+		assert (MRVertex.getIsBranch(text4a) == false);
+		
+		Text text4b = v4.toText(MRVertex.FORMAT_EDGES_TO_FROM);
+		assert (MRVertex.getIsBranch(text4b) == false);
+		
+		MRVertex v5 = new MRVertex(5);
+		v5.addEdgeTo(2);
+		v5.addEdgeTo(2);
+		
+		Text text5a = v5.toText(MRVertex.FORMAT_EDGES_TO);
+		assert (MRVertex.getIsBranch(text5a) == true);
+		
+		Text text5b = v5.toText(MRVertex.FORMAT_EDGES_TO_FROM);
+		assert (MRVertex.getIsBranch(text5b) == true);
+		
+		MRVertex v6 = new MRVertex(6);
+		v6.addEdgeTo(2);
+		v6.addEdgeFrom(7);
+		v6.addEdgeFrom(7);
+		
+		Text text6a = v6.toText(MRVertex.FORMAT_EDGES_TO);
+		assert (MRVertex.getIsBranch(text6a) == true);
+		
+		Text text6b = v6.toText(MRVertex.FORMAT_EDGES_TO_FROM);
+		assert (MRVertex.getIsBranch(text6b) == true);
+		
+		MRVertex v8 = new MRVertex(8);		
+		v8.addEdgeFrom(9);
+
+		Text text8a = v8.toText(MRVertex.FORMAT_EDGES_TO);
+		assert (MRVertex.getIsBranch(text8a) == false);
+		
+		Text text8b = v8.toText(MRVertex.FORMAT_EDGES_TO_FROM);
+		assert (MRVertex.getIsBranch(text8b) == false);
+
+		//
+		
+		MRVertex v10 = new MRVertex(10);
+		v10.addEdgeTo(11);
+		
+		MRVertex.AdjacencyIterator toIt10 = v10.createToAdjacencyIterator();
+		int to10 = 0;
+		for (int to = toIt10.begin(); !toIt10.done(); to = toIt10.next()) {
+			assert (to == 11);
+			to10++;
+		}
+		assert (to10 == 1);		
+		
+		MRVertex v11 = new MRVertex(11);
+		v11.addEdgeTo(12);
+		
+		MRVertex.AdjacencyIterator toIt11 = v11.createToAdjacencyIterator();
+		int to11 = 0;
+		for (int to = toIt11.begin(); !toIt11.done(); to = toIt11.next()) {
+			assert (to == 12);
+			to11++;
+		}
+		assert (to11 == 1);		
+		
+		MRVertex v12 = new MRVertex(12);
+		v12.addEdgeTo(13);
+		
+		MRVertex.AdjacencyIterator toIt12 = v12.createToAdjacencyIterator();
+		int to12 = 0;
+		for (int to = toIt12.begin(); !toIt12.done(); to = toIt12.next()) {
+			assert (to == 13);
+			to12++;
+		}
+		assert (to12 == 1);		
+		
+		MRVertex v13 = new MRVertex(13);
+		v13.addEdgeTo(14);
+		
+		MRVertex.AdjacencyIterator toIt13 = v13.createToAdjacencyIterator();
+		int to13 = 0;
+		for (int to = toIt13.begin(); !toIt13.done(); to = toIt13.next()) {
+			assert (to == 14);
+			to13++;
+		}
+		assert (to13 == 1);		
+		
+		MRVertex v14 = new MRVertex(14);
+		MRVertex.AdjacencyIterator toIt14 = v14.createToAdjacencyIterator();
+		assert (toIt14.done());
+		
+		MRVertex.merge(v10, v11, 11);
+
+		MRVertex.AdjacencyIterator toIt10a = v10.createToAdjacencyIterator();
+		int to10a = 0;
+		for (int to = toIt10a.begin(); !toIt10a.done(); to = toIt10a.next()) {
+			assert (to == 12);
+			to10a++;
+		}
+		assert (to10a == 1);		
+
+		MRVertex.merge(v12, v13, 13);
+
+		MRVertex.AdjacencyIterator toIt12a = v12.createToAdjacencyIterator();
+		int to12a = 0;
+		for (int to = toIt12a.begin(); !toIt12a.done(); to = toIt12a.next()) {
+			assert (to == 14);
+			to12a++;
+		}
+		assert (to12a == 1);		
+
+		MRVertex.merge(v10, v12, 12);
+
+		MRVertex.AdjacencyIterator toIt10b = v10.createToAdjacencyIterator();
+		int to10b = 0;
+		for (int to = toIt10b.begin(); !toIt10b.done(); to = toIt10b.next()) {
+			assert (to == 14);
+			to10b++;
+		}
+		assert (to10b == 1);		
 
 		System.out.println("MRVertex passed.");
 	}
