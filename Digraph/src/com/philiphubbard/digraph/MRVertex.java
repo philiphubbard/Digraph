@@ -22,6 +22,15 @@
 
 package com.philiphubbard.digraph;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.IOException; 
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.HashSet;
+
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.io.Text;
 
 // A directed-graph vertex for use with Hadoop map-reduce algorithms.
@@ -65,6 +74,10 @@ public class MRVertex {
 	// Constructor, building the vertex from a Hadoop Text (Writable) instance.
 	
 	public MRVertex(Text text) {
+		this(text.toString());
+	}
+	
+	public MRVertex(String s) {
 		edges = new EdgeLink[2];
 		edges[INDEX_EDGES_TO] = null;
 		edges[INDEX_EDGES_FROM] = null;
@@ -74,35 +87,44 @@ public class MRVertex {
 			return;
 			*/
 		
-		String s = text.toString();
 		// HEY!!
 		//char header = s.charAt(0);
 		s = s.substring(1);
 		// HEY!! If not writing "from" edges, get the header flag about being a branch or not?
 		
-		String[] tokens = s.split(SEPARATOR);
+		// Five parts: header and ID; format; edges to other vertices; edges from other vertices;
+		// subclass data.
+		
+		String[] tokens = s.split(SEPARATOR, 5);
+		
 		// TODO: Add error handling for malformed strings.
-		id = Integer.parseInt(tokens[0]);
-		String format = tokens[1];
-		int i;
-		for (i = 2; i < tokens.length; i++) {
-			int j = Integer.parseInt(tokens[i]);
-			if ((format.equals(FORMAT_EDGES_TO_FROM)) && (j == NO_VERTEX))
-				break;
-			addEdgeTo(j);
+		int iToken = 0;
+		id = Integer.parseInt(tokens[iToken++]);
+		
+		String edgeFormat = tokens[iToken++];
+		
+		String edgesTo = tokens[iToken++];
+		if (!edgesTo.isEmpty()) {
+			for (String edge : edgesTo.split(EDGE_SEPARATOR))
+				addEdgeTo(Integer.parseInt(edge));
 		}
-		if (format.equals(FORMAT_EDGES_TO_FROM)) {
-			for (i++; i < tokens.length; i++) {
-				int j = Integer.parseInt(tokens[i]);
-				addEdgeFrom(j);
+		
+		if (edgeFormat.equals(FORMAT_EDGES_TO_FROM)) {
+			String edgesFrom = tokens[iToken++];
+			if (!edgesFrom.isEmpty()) {
+				for (String edge : edgesFrom.split(EDGE_SEPARATOR))
+					addEdgeFrom(Integer.parseInt(edge));
 			}
 		}
 		
-		int i2 = s.lastIndexOf(SEPARATOR);
-		if (i2 < s.length() - 1) {
-			String s2 = s.substring(i2 + 1);
-			fromTextInternal(s2);
-		}
+		if (!tokens[iToken].isEmpty())
+			fromTextInternal(tokens[iToken]);
+	}
+	
+	// The vertex's identifier.
+	
+	public int getId() {
+		return id;
 	}
 	
 	// Write this vertex to a Hadoop Text (Writable) instance.
@@ -111,29 +133,42 @@ public class MRVertex {
 	// those edges and the edges pointing from other vertices to this
 	// vertex.
 
-	public static final String FORMAT_EDGES_TO = "t";
-	public static final String FORMAT_EDGES_TO_FROM = "b";
+	public enum EdgeFormat { EDGES_TO, EDGES_TO_FROM };
 	
-	public Text toText(String format) {
+	public Text toText(EdgeFormat edgeFormat) {
+		return toText(edgeFormat, TextFormat.VALUE);
+	}
+	
+	public enum TextFormat { VALUE, KEY_VALUE }
+	
+	public Text toText(EdgeFormat edgeFormat, TextFormat textFormat) {
 		StringBuilder s = new StringBuilder();
+		
+		if (textFormat == TextFormat.KEY_VALUE) {
+			s.append(id);
+			s.append("\t");
+		}
+		
 		setHeader(s);
 		s.append(id);
 		s.append(SEPARATOR);
-		s.append(format);
+		s.append((edgeFormat == EdgeFormat.EDGES_TO) ? FORMAT_EDGES_TO : 
+			FORMAT_EDGES_TO_FROM);
 		s.append(SEPARATOR);
 		EdgeLink link = edges[INDEX_EDGES_TO];
 		while (link != null) {
 			s.append(link.vertex);
-			s.append(SEPARATOR);
+			if (link.next != null)
+				s.append(EDGE_SEPARATOR);
 			link = link.next;
 		}
-		if (format.equals(FORMAT_EDGES_TO_FROM)) {
-			s.append(NO_VERTEX);
+		if (edgeFormat == EdgeFormat.EDGES_TO_FROM) {
 			s.append(SEPARATOR);
 			link = edges[INDEX_EDGES_FROM];
 			while (link != null) {
 				s.append(link.vertex);
-				s.append(SEPARATOR);
+				if (link.next != null)
+					s.append(EDGE_SEPARATOR);
 				link = link.next;
 			}
 		}
@@ -141,13 +176,10 @@ public class MRVertex {
 		s.append(SEPARATOR);
 		toTextInternal(s);
 		
+		if (textFormat == TextFormat.KEY_VALUE)
+			s.append("\n");
+		
 		return new Text(s.toString());
-	}
-	
-	// The vertex's identifier.
-	
-	public int getId() {
-		return id;
 	}
 	
 	// Add an edge that points to the specified vertex from this vertex.
@@ -221,8 +253,19 @@ public class MRVertex {
 	public int getMergeKey() {
 		int to = getTail();
 		if (to == NO_VERTEX)
-			return NO_VERTEX;
-		if (System.nanoTime() % 2 == 0)
+			return getId();
+		
+		// HEY!! With Java 1.7, can use java.util.concurrent.ThreadLocalRandom?
+		int r = 0;
+		long t = System.nanoTime();
+		t += getId();
+		for (int i = 0; i < 8; i++)
+			r += ((t >>= 1) & 0x1);
+		
+		// HEY!! Debug
+		System.out.println("*** t " + t + " r = " + r + " ***");
+		
+		if (r % 2 == 0)
 			return to;
 		else
 			return getId();
@@ -251,12 +294,92 @@ public class MRVertex {
 		int to = getTail();
 		if (to != other.getId())
 			return;
+		int otherTo = other.getTail();
+		if (otherTo == NO_VERTEX)
+			return;
 		
 		mergeInternal(other);
 		
-		int otherTo = other.getTail();
 		clearEdges();
 		addEdgeTo(otherTo);
+	}
+	
+	//
+	
+	public boolean equals(MRVertex other) {
+		if (id != other.id)
+			return false;
+		
+		HashSet<Integer> toSet = new HashSet<Integer>();
+		MRVertex.AdjacencyIterator toIt = createToAdjacencyIterator();
+		for (int to = toIt.begin(); !toIt.done(); to = toIt.next())
+			toSet.add(to);
+		HashSet<Integer> toSetOther = new HashSet<Integer>();
+		MRVertex.AdjacencyIterator toItOther = other.createToAdjacencyIterator();
+		for (int to = toItOther.begin(); !toItOther.done(); to = toItOther.next())
+			toSetOther.add(to);
+		if (!toSet.equals(toSetOther))
+			return false;
+		
+		HashSet<Integer> fromSet = new HashSet<Integer>();
+		MRVertex.AdjacencyIterator fromIt = createFromAdjacencyIterator();
+		for (int from = fromIt.begin(); !fromIt.done(); from = fromIt.next())
+			fromSet.add(from);
+		HashSet<Integer> fromSetOther = new HashSet<Integer>();
+		MRVertex.AdjacencyIterator fromItOther = other.createFromAdjacencyIterator();
+		for (int from = fromItOther.begin(); !fromItOther.done(); from = fromItOther.next())
+			fromSetOther.add(from);
+		if (!fromSet.equals(fromSetOther))
+			return false;
+		
+		return true;
+	}
+	
+	public String toDisplayString() {
+		StringBuilder s = new StringBuilder();
+		
+		s.append("MRVertex ");
+		s.append(getId());
+		
+		MRVertex.AdjacencyIterator toIt = createToAdjacencyIterator();
+		if (toIt.begin() != NO_VERTEX) {
+			s.append(": to: ");
+			for (int to = toIt.begin(); !toIt.done(); to = toIt.next()) {
+				s.append(to);
+				s.append(" ");
+			}
+		}
+		
+		MRVertex.AdjacencyIterator fromIt = createFromAdjacencyIterator();
+		if (fromIt.begin() != NO_VERTEX) {
+			s.append(": from: ");
+			for (int from = fromIt.begin(); !fromIt.done(); from = fromIt.next()) {
+				s.append(from);
+				s.append(" ");
+			}
+		}
+		
+		return s.toString();
+	}
+	
+	static void read(FSDataInputStream in, ArrayList<MRVertex> vertices) throws IOException {
+		InputStreamReader inReader = new InputStreamReader(in, Charset.forName("UTF-8"));
+		BufferedReader bufferedReader = new BufferedReader(inReader);
+		String line;
+		while((line = bufferedReader.readLine()) != null) {
+			String[] tokens = line.split("\t", 2);
+			MRVertex vertex = new MRVertex(tokens[1]);
+			vertices.add(vertex);
+		}
+	}
+	
+	static void write(FSDataOutputStream out, ArrayList<MRVertex> vertices) throws IOException {
+		for (MRVertex vertex : vertices) {
+			Text text = vertex.toText(MRVertex.EdgeFormat.EDGES_TO, MRVertex.TextFormat.KEY_VALUE);
+			byte[] bytes = text.copyBytes();
+			for (byte b : bytes)
+				out.write(b);
+		}
 	}
 	
 	//
@@ -282,6 +405,7 @@ public class MRVertex {
 	}
 	
 	protected int getTail() {
+		/* HEY!! Old, does it not work?
 		AdjacencyIterator itTo = createToAdjacencyIterator();
 		int to = itTo.begin();
 		if (itTo.done())
@@ -290,6 +414,11 @@ public class MRVertex {
 		if (!itTo.done())
 			return NO_VERTEX;
 		return to;
+			*/
+		if ((edges[INDEX_EDGES_TO] != null) && (edges[INDEX_EDGES_TO].next == null))
+			return edges[INDEX_EDGES_TO].vertex;
+		else
+			return NO_VERTEX;
 	}
 	
 	protected void mergeInternal(MRVertex other) {
@@ -340,13 +469,19 @@ public class MRVertex {
 		EdgeLink next;
 	}
 	
+	// HEY!! Private or protected?
+	
 	private static final short NUM_TYPE_BITS = 8;
 	private static final short TEXT_TYPE_ID = 1;
 	
 	private static final int FLAGS_MASK = 0xFF;
 	private static final short FLAG_IS_BRANCH = 0x1;
 	
-	private static final String SEPARATOR = ",";
+	private static final String FORMAT_EDGES_TO = "t";
+	private static final String FORMAT_EDGES_TO_FROM = "b";
+
+	protected static final String SEPARATOR = ";";
+	protected static final String EDGE_SEPARATOR = ",";
 	
 	private int id;
 	

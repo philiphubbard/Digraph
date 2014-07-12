@@ -25,44 +25,102 @@ package com.philiphubbard.digraph;
 // A sample driver application for running the MRCompressChains class
 // with Hadoop.
 
-import com.philiphubbard.digraph.MRBuildVertices;
+import com.philiphubbard.digraph.MRCompressChains;
 
+import java.util.ArrayList;
+import java.io.IOException; 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.util.GenericOptionsParser;
 
 public class MRCompressChainsTest {
-
+	
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
-		String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
-		if (otherArgs.length != 2) {
-			System.err.println("Usage: mrcollectvertexedgestest <in> <out>");
-			System.exit(2);
+		
+		setupTest(conf);
+		String inputOrig = testInput;
+		String outputOrig = testOutput;
+		
+		int iter = 0;
+		boolean keepGoing = true;
+		MRCompressChains.beginIteration();
+		while (keepGoing) {
+			Job job = Job.getInstance(conf);
+			job.setJobName("mrcompresschainstest");
+			
+			MRCompressChains.setupIterationJob(job, new Path(inputOrig), new Path(outputOrig));
+			
+			if (!job.waitForCompletion(true))
+				System.exit(1);
+			
+			iter++;
+			keepGoing = MRCompressChains.continueIteration(job, new Path(inputOrig), new Path(outputOrig));
 		}
 		
-		Job job = Job.getInstance(conf);
-		job.setJobName("mrcollectvertexedgestest");
+		//
 		
-		job.setJarByClass(MRBuildVertices.class);
-		job.setMapperClass(MRBuildVertices.Mapper.class);
-		job.setCombinerClass(MRBuildVertices.Reducer.class);
-		job.setReducerClass(MRBuildVertices.Reducer.class);
+		System.out.println("Number of iterations = " + iter); 
 		
-		job.setMapOutputKeyClass(IntWritable.class);
-        job.setMapOutputValueClass(Text.class);
-		job.setOutputKeyClass(IntWritable.class);
-		job.setOutputValueClass(Text.class);
+		cleanupTest(conf);
 		
-		FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
-		FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
+		//
 		
-		System.exit(job.waitForCompletion(true) ? 0 : 1);
+		System.exit(0);
 	}
+	
+	private static void setupTest(Configuration conf) throws IOException {
+		FileSystem fileSystem = FileSystem.get(conf);
+		
+		Path path = new Path(testInput);
+		if (fileSystem.exists(path))
+			fileSystem.delete(path, true);
+		
+		ArrayList<MRVertex> vertices = new ArrayList<MRVertex>();
+		for (int i = 0; i < 60; i++) {
+			MRVertex vertex = new MRVertex(i);
+			vertices.add(vertex);
+			if (i % 20 != 19)
+				vertex.addEdgeTo(i+1);
+		}
+		
+		FSDataOutputStream out = fileSystem.create(path);
+		MRVertex.write(out, vertices);
+		out.close();
+		
+		fileSystem.close();
+	}
+	
+	private static void cleanupTest(Configuration conf) throws IOException {
+		FileSystem fileSystem = FileSystem.get(conf);
 
+		ArrayList<MRVertex> vertices = new ArrayList<MRVertex>();
+		
+		FileStatus[] files = fileSystem.listStatus(new Path(testOutput));
+		for (FileStatus status : files) {
+			Path path = status.getPath();
+			if (path.getName().startsWith("part")) {
+				System.out.println(path); 
+				
+				FSDataInputStream in = fileSystem.open(path);
+				MRVertex.read(in, vertices);
+				in.close();
+			}
+		}
+		
+		for (MRVertex vertex : vertices) 
+			System.out.println(vertex.toDisplayString());
+		
+		fileSystem.delete(new Path(testInput), true);
+		fileSystem.delete(new Path(testOutput), true);
+		
+		fileSystem.close();
+	}
+	
+	private static String testInput = new String("MRCompressChainsTest_in.txt");
+	private static String testOutput = new String("MRCompressChainsTest_out");
 }

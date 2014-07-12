@@ -25,15 +25,17 @@ package com.philiphubbard.digraph;
 // A sample driver application for running the MRBuildVertices class
 // with Hadoop.
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 import com.philiphubbard.digraph.MRBuildVertices;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
 public class MRBuildVerticesTest {
@@ -49,28 +51,41 @@ public class MRBuildVerticesTest {
 		Job job = Job.getInstance(conf);
 		job.setJobName("mrbuildverticestest");
 		
-		// HEY!! Put some/all of the following in a static MRBuildVertices setup routine?
+		Path inputPath = new Path(otherArgs[0]);
+		Path outputPath = new Path(otherArgs[1]);
+		MRBuildVertices.setupJob(job, inputPath, outputPath);	
+		MRBuildVertices.setupPartitioning(job, "branch", "chain");
 		
-		job.setJarByClass(MRBuildVertices.class);
-		job.setMapperClass(MRBuildVertices.Mapper.class);
-		job.setCombinerClass(MRBuildVertices.Reducer.class);
-		job.setReducerClass(MRBuildVertices.Reducer.class);
+		if (!job.waitForCompletion(true))
+			System.exit(1);
 		
-		job.setMapOutputKeyClass(IntWritable.class);
-        job.setMapOutputValueClass(Text.class);
-		job.setOutputKeyClass(IntWritable.class);
-		job.setOutputValueClass(Text.class);
+		//
 		
-		FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
-		FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
+		FileSystem fileSystem = FileSystem.get(conf);
 		
-		// HEY!!
-		MRBuildVertices.setupOutput(job, "branch", "chain");
+		FileStatus[] files = fileSystem.listStatus(outputPath);
+		for (FileStatus status : files) {
+			Path path = status.getPath();
+			boolean isBranch = path.getName().startsWith("branch");
+			boolean isChain = path.getName().startsWith("chain");
+			if (isBranch || isChain) {
+				System.out.println(path); 
+				
+				FSDataInputStream in = fileSystem.open(path);
+				InputStreamReader inReader = new InputStreamReader(in);
+				BufferedReader bufferedReader = new BufferedReader(inReader);
+				String line;
+				while((line= bufferedReader.readLine()) != null) 
+					System.out.println(line);
+				in.close();
+			}
+		}
 		
-		// HEY!!
-		//MRBuildVertices.setIncludeFromEdges(true);
+		fileSystem.close();
 		
-		System.exit(job.waitForCompletion(true) ? 0 : 1);
+		//
+		
+		System.exit(0);
 	}
 
 }
