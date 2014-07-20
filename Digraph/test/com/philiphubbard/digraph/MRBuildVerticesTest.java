@@ -25,67 +25,127 @@ package com.philiphubbard.digraph;
 // A sample driver application for running the MRBuildVertices class
 // with Hadoop.
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-
-import com.philiphubbard.digraph.MRBuildVertices;
+import java.io.IOException;
+import java.util.ArrayList;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.util.GenericOptionsParser;
+
+import com.philiphubbard.digraph.MRBuildVertices;
 
 public class MRBuildVerticesTest {
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
-		String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
-		if (otherArgs.length != 2) {
-			System.err.println("Usage: mrcollectvertexedgestest <in> <out>");
-			System.exit(2);
-		}
+
+		setupTest(conf);
 		
 		Job job = Job.getInstance(conf);
 		job.setJobName("mrbuildverticestest");
 		
-		Path inputPath = new Path(otherArgs[0]);
-		Path outputPath = new Path(otherArgs[1]);
-		MRBuildVertices.setupJob(job, inputPath, outputPath);	
-		MRBuildVertices.setupPartitioning(job, "branch", "chain");
+		MRBuildVertices.setupJob(job, new Path(testInput), new Path(testOutput));	
+		MRBuildVertices.setPartitionBranchesChains(true);
 		
 		if (!job.waitForCompletion(true))
 			System.exit(1);
 		
-		//
-		
+		cleanupTest(conf);
+
+		System.exit(0);
+	}
+	
+	private static void setupTest(Configuration conf) throws IOException {
 		FileSystem fileSystem = FileSystem.get(conf);
 		
-		FileStatus[] files = fileSystem.listStatus(outputPath);
-		for (FileStatus status : files) {
+		Path path = new Path(testInput);
+		if (fileSystem.exists(path))
+			fileSystem.delete(path, true);
+		
+		ArrayList<MRVertex> vertices = new ArrayList<MRVertex>();
+		
+		MRVertex v0 = new MRVertex(0);
+		v0.addEdgeTo(2);
+		vertices.add(v0);
+		
+		MRVertex v1 = new MRVertex(1);
+		v1.addEdgeTo(2);
+		vertices.add(v1);
+		
+		MRVertex v2 = new MRVertex(2);
+		v2.addEdgeTo(3);
+		vertices.add(v2);
+		
+		MRVertex v3 = new MRVertex(3);
+		v3.addEdgeTo(4);
+		vertices.add(v3);
+		
+		MRVertex v4 = new MRVertex(4);
+		v4.addEdgeTo(5);
+		v4.addEdgeTo(6);
+		vertices.add(v4);
+		
+		MRVertex v5 = new MRVertex(5);
+		vertices.add(v5);
+		
+		MRVertex v6 = new MRVertex(6);
+		vertices.add(v6);
+		
+		FSDataOutputStream out = fileSystem.create(path);
+		MRVertex.write(out, vertices, MRVertex.TextFormat.VALUE_LINE);
+		out.close();
+		
+		fileSystem.close();
+	}
+	
+	private static void cleanupTest(Configuration conf) throws IOException {
+		FileSystem fileSystem = FileSystem.get(conf);
+
+		ArrayList<MRVertex> branch = new ArrayList<MRVertex>();
+		
+		FileStatus[] branchFiles = fileSystem.listStatus(new Path(testOutput + "/branch"));
+		for (FileStatus status : branchFiles) {
 			Path path = status.getPath();
-			boolean isBranch = path.getName().startsWith("branch");
-			boolean isChain = path.getName().startsWith("chain");
-			if (isBranch || isChain) {
+			if (path.getName().startsWith("part")) {
 				System.out.println(path); 
 				
 				FSDataInputStream in = fileSystem.open(path);
-				InputStreamReader inReader = new InputStreamReader(in);
-				BufferedReader bufferedReader = new BufferedReader(inReader);
-				String line;
-				while((line= bufferedReader.readLine()) != null) 
-					System.out.println(line);
+				MRVertex.read(in, branch);
 				in.close();
 			}
 		}
 		
+		for (MRVertex vertex : branch) 
+			System.out.println(vertex.toDisplayString());
+		
+		ArrayList<MRVertex> chain = new ArrayList<MRVertex>();
+		
+		FileStatus[] chainFiles = fileSystem.listStatus(new Path(testOutput + "/chain"));
+		for (FileStatus status : chainFiles) {
+			Path path = status.getPath();
+			if (path.getName().startsWith("part")) {
+				System.out.println(path); 
+				
+				FSDataInputStream in = fileSystem.open(path);
+				MRVertex.read(in, chain);
+				in.close();
+			}
+		}
+		
+		for (MRVertex vertex : chain) 
+			System.out.println(vertex.toDisplayString());
+		
+		fileSystem.delete(new Path(testInput), true);
+		fileSystem.delete(new Path(testOutput), true);
+		
 		fileSystem.close();
-		
-		//
-		
-		System.exit(0);
 	}
+	
+	private static String testInput = new String("MRBuildVerticesTest_in.txt");
+	private static String testOutput = new String("MRBuildVerticesTest_out");
 
 }

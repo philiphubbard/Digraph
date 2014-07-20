@@ -89,7 +89,7 @@ public class MRCompressChainsTest {
 		}
 		
 		FSDataOutputStream out = fileSystem.create(path);
-		MRVertex.write(out, vertices);
+		MRVertex.write(out, vertices, MRVertex.TextFormat.KEY_VALUE_LINE);
 		out.close();
 		
 		fileSystem.close();

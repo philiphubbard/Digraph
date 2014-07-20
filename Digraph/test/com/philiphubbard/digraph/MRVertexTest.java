@@ -236,10 +236,10 @@ public class MRVertexTest {
 		v5.addEdgeTo(2);
 		
 		Text text5a = v5.toText(MRVertex.EdgeFormat.EDGES_TO);
-		assert (MRVertex.getIsBranch(text5a) == true);
+		assert (MRVertex.getIsBranch(text5a) == false);
 		
 		Text text5b = v5.toText(MRVertex.EdgeFormat.EDGES_TO_FROM);
-		assert (MRVertex.getIsBranch(text5b) == true);
+		assert (MRVertex.getIsBranch(text5b) == false);
 		
 		MRVertex v6 = new MRVertex(6);
 		v6.addEdgeTo(2);
@@ -247,10 +247,10 @@ public class MRVertexTest {
 		v6.addEdgeFrom(7);
 		
 		Text text6a = v6.toText(MRVertex.EdgeFormat.EDGES_TO);
-		assert (MRVertex.getIsBranch(text6a) == true);
+		assert (MRVertex.getIsBranch(text6a) == false);
 		
 		Text text6b = v6.toText(MRVertex.EdgeFormat.EDGES_TO_FROM);
-		assert (MRVertex.getIsBranch(text6b) == true);
+		assert (MRVertex.getIsBranch(text6b) == false);
 		
 		MRVertex v8 = new MRVertex(8);		
 		v8.addEdgeFrom(9);
@@ -260,86 +260,121 @@ public class MRVertexTest {
 		
 		Text text8b = v8.toText(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsBranch(text8b) == false);
+		
+		MRVertex v9 = new MRVertex(9);
+		v9.addEdgeTo(10);
+		v9.addEdgeTo(10);
+		v9.addEdgeTo(11);
+		
+		Text text9a = v9.toText(MRVertex.EdgeFormat.EDGES_TO);
+		assert (MRVertex.getIsBranch(text9a) == true);
 
+		Text text9b = v9.toText(MRVertex.EdgeFormat.EDGES_TO_FROM);
+		assert (MRVertex.getIsBranch(text9b) == true);
+
+		MRVertex v10 = new MRVertex(10);
+		v10.addEdgeFrom(9);
+		v10.addEdgeFrom(9);
+		v10.addEdgeTo(11);
+		v10.addEdgeTo(12);
+		
+		Text text10a = v10.toText(MRVertex.EdgeFormat.EDGES_TO);
+		assert (MRVertex.getIsBranch(text10a) == true);
+
+		Text text10b = v10.toText(MRVertex.EdgeFormat.EDGES_TO_FROM);
+		assert (MRVertex.getIsBranch(text10b) == true);
+
+		MRVertex v11 = new MRVertex(11);
+		v11.addEdgeFrom(10);
+		v11.addEdgeFrom(12);
+		v11.addEdgeTo(13);
+		v11.addEdgeTo(13);
+		
+		Text text11a = v11.toText(MRVertex.EdgeFormat.EDGES_TO);
+		assert (MRVertex.getIsBranch(text11a) == true);
+		
+		Text text11b = v11.toText(MRVertex.EdgeFormat.EDGES_TO_FROM);
+		assert (MRVertex.getIsBranch(text11b) == true);
+		
 		//
 		
-		MRVertex v10 = new MRVertex(10);
-		v10.addEdgeTo(11);
+		MRVertex v20 = new MRVertex(20);
+		v20.addEdgeTo(21);
 		
-		MRVertex.AdjacencyIterator toIt10 = v10.createToAdjacencyIterator();
-		int to10 = 0;
-		for (int to = toIt10.begin(); !toIt10.done(); to = toIt10.next()) {
-			assert (to == 11);
-			to10++;
+		MRVertex.AdjacencyIterator toIt20 = v20.createToAdjacencyIterator();
+		int to20 = 0;
+		for (int to = toIt20.begin(); !toIt20.done(); to = toIt20.next()) {
+			assert (to == 21);
+			to20++;
 		}
-		assert (to10 == 1);		
+		assert (to20 == 1);		
 		
-		MRVertex v11 = new MRVertex(11);
-		v11.addEdgeTo(12);
+		MRVertex v21 = new MRVertex(21);
+		v21.addEdgeTo(22);
 		
-		MRVertex.AdjacencyIterator toIt11 = v11.createToAdjacencyIterator();
-		int to11 = 0;
-		for (int to = toIt11.begin(); !toIt11.done(); to = toIt11.next()) {
-			assert (to == 12);
-			to11++;
+		MRVertex.AdjacencyIterator toIt21 = v21.createToAdjacencyIterator();
+		int to21 = 0;
+		for (int to = toIt21.begin(); !toIt21.done(); to = toIt21.next()) {
+			assert (to == 22);
+			to21++;
 		}
-		assert (to11 == 1);		
+		assert (to21 == 1);		
 		
-		MRVertex v12 = new MRVertex(12);
-		v12.addEdgeTo(13);
+		MRVertex v22 = new MRVertex(22);
+		v22.addEdgeTo(23);
 		
-		MRVertex.AdjacencyIterator toIt12 = v12.createToAdjacencyIterator();
-		int to12 = 0;
-		for (int to = toIt12.begin(); !toIt12.done(); to = toIt12.next()) {
-			assert (to == 13);
-			to12++;
+		MRVertex.AdjacencyIterator toIt22 = v22.createToAdjacencyIterator();
+		int to22 = 0;
+		for (int to = toIt22.begin(); !toIt22.done(); to = toIt22.next()) {
+			assert (to == 23);
+			to22++;
 		}
-		assert (to12 == 1);		
+		assert (to22 == 1);		
 		
-		MRVertex v13 = new MRVertex(13);
-		v13.addEdgeTo(14);
+		MRVertex v23 = new MRVertex(23);
+		v23.addEdgeTo(24);
 		
-		MRVertex.AdjacencyIterator toIt13 = v13.createToAdjacencyIterator();
-		int to13 = 0;
-		for (int to = toIt13.begin(); !toIt13.done(); to = toIt13.next()) {
-			assert (to == 14);
-			to13++;
+		MRVertex.AdjacencyIterator toIt23 = v23.createToAdjacencyIterator();
+		int to23 = 0;
+		for (int to = toIt23.begin(); !toIt23.done(); to = toIt23.next()) {
+			assert (to == 24);
+			to23++;
 		}
-		assert (to13 == 1);		
+		assert (to23 == 1);		
 		
-		MRVertex v14 = new MRVertex(14);
-		MRVertex.AdjacencyIterator toIt14 = v14.createToAdjacencyIterator();
-		assert (toIt14.done());
+		MRVertex v24 = new MRVertex(24);
+		MRVertex.AdjacencyIterator toIt24 = v24.createToAdjacencyIterator();
+		assert (toIt24.done());
 		
-		MRVertex.merge(v10, v11, 11);
+		MRVertex.merge(v20, v21, 21);
 
-		MRVertex.AdjacencyIterator toIt10a = v10.createToAdjacencyIterator();
-		int to10a = 0;
-		for (int to = toIt10a.begin(); !toIt10a.done(); to = toIt10a.next()) {
-			assert (to == 12);
-			to10a++;
+		MRVertex.AdjacencyIterator toIt20a = v20.createToAdjacencyIterator();
+		int to20a = 0;
+		for (int to = toIt20a.begin(); !toIt20a.done(); to = toIt20a.next()) {
+			assert (to == 22);
+			to20a++;
 		}
-		assert (to10a == 1);		
+		assert (to20a == 1);		
 
-		MRVertex.merge(v12, v13, 13);
+		MRVertex.merge(v22, v23, 23);
 
-		MRVertex.AdjacencyIterator toIt12a = v12.createToAdjacencyIterator();
-		int to12a = 0;
-		for (int to = toIt12a.begin(); !toIt12a.done(); to = toIt12a.next()) {
-			assert (to == 14);
-			to12a++;
+		MRVertex.AdjacencyIterator toIt22a = v22.createToAdjacencyIterator();
+		int to22a = 0;
+		for (int to = toIt22a.begin(); !toIt22a.done(); to = toIt22a.next()) {
+			assert (to == 24);
+			to22a++;
 		}
-		assert (to12a == 1);		
+		assert (to22a == 1);		
 
-		MRVertex.merge(v10, v12, 12);
+		MRVertex.merge(v20, v22, 22);
 
-		MRVertex.AdjacencyIterator toIt10b = v10.createToAdjacencyIterator();
-		int to10b = 0;
-		for (int to = toIt10b.begin(); !toIt10b.done(); to = toIt10b.next()) {
-			assert (to == 14);
-			to10b++;
+		MRVertex.AdjacencyIterator toIt20b = v20.createToAdjacencyIterator();
+		int to20b = 0;
+		for (int to = toIt20b.begin(); !toIt20b.done(); to = toIt20b.next()) {
+			assert (to == 24);
+			to20b++;
 		}
-		assert (to10b == 1);		
+		assert (to20b == 1);		
 
 		System.out.println("MRVertex (basic) passed.");
 	}
@@ -367,8 +402,8 @@ public class MRVertexTest {
 			}
 		}
 		
-		protected void toTextInternal(StringBuilder s) {
-			s.append(extra);
+		protected String toTextInternal() {
+			return String.valueOf(extra);
 		}
 		
 		protected void fromTextInternal(String s) {

@@ -70,28 +70,6 @@ public class MRCompressChains {
 		FileOutputFormat.setOutputPath(job, outputPath);	
 	}
 	
-	// HEY!!
-	// iter = 0
-	// setup: 
-	// input = inputOrig
-	// output = outputOrig+0
-	// continue:
-	// if done rename outputOrig+0 to outputOrig
-	// iter = 1
-	// setup:
-	// input = outputOrig+0
-	// output = outputOrig+1
-	// continue:
-	// if done rename outputOrig+1 to outputOrig
-	// delete outputOrig+0
-	// iter = 2
-	// setup:
-	// input = outputOrig+1
-	// output = outputOrig+2
-	// continue:
-	// if done rename outputOrig+2 to outputOrig
-	// delete outputOrig+1
-	
 	public static boolean continueIteration(Job job, Path inputPathOrig, Path outputPathOrig) 
 			throws IOException {
 		FileSystem fileSystem = FileSystem.get(job.getConfiguration());
@@ -188,15 +166,27 @@ public class MRCompressChains {
 			}
 			else {
 				int mergeKey = key.get();
+				
+				// HEY!!
+				System.out.println("** merging " + vertex2.toDisplayString() + " into " + vertex1.toDisplayString() 
+						+ " key " + mergeKey + " **");
+				
 				MRVertex vertexMerged = MRVertex.merge(vertex1, vertex2, mergeKey);
 				
-				if (vertexMerged.getId() == MRVertex.NO_VERTEX)
-					throw new IOException("MRCompressChains.Reducer.reduce(): merge failed");
-			
-				IntWritable keyOut = new IntWritable(vertexMerged.getId());
-				context.write(keyOut, vertexMerged.toText(MRVertex.EdgeFormat.EDGES_TO));
+				if (vertexMerged.getId() != MRVertex.NO_VERTEX) {
+					IntWritable keyOut = new IntWritable(vertexMerged.getId());
+					context.write(keyOut, vertexMerged.toText(MRVertex.EdgeFormat.EDGES_TO));
 				
-				context.getCounter(MergeCounter.numMerges).increment(1);
+					context.getCounter(MergeCounter.numMerges).increment(1);
+				}
+				else {
+					// V1 -> V3 key V3, V2 -> V3 key V3, possible if V3 is a branch.
+					IntWritable keyOut1 = new IntWritable(vertex1.getId());
+					context.write(keyOut1, vertex1.toText(MRVertex.EdgeFormat.EDGES_TO));
+					
+					IntWritable keyOut2 = new IntWritable(vertex2.getId());
+					context.write(keyOut2, vertex2.toText(MRVertex.EdgeFormat.EDGES_TO));
+				}
 			}
 		}
 	}

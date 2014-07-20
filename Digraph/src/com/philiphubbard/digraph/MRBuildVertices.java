@@ -27,8 +27,6 @@ import com.philiphubbard.digraph.MREdge;
 
 // HEY!! Change name to MRPartitionBranchVertices? No, since partitioning is optional?
 
-
-
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -40,7 +38,6 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
-import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 // A mapper and reducer for a Hadoop map-reduce algorithm to collect the edges associated
 // with a vertex, turning vertex descriptions with only the edges pointing out from the
@@ -73,28 +70,8 @@ public class MRBuildVertices {
 	
 	// Optional setup.
 	
-	// Pass null for branchOutput and chainOutput to turn off partitioning.
-	public static void setupPartitioning(Job job, String outputBranch, String outputChain) {
-		if ((outputBranch != null) && (outputChain != null)) {
-			partitionBranchesChains = true;
-			branchOutput = outputBranch;
-			chainOutput = outputChain;
-			MultipleOutputs.addNamedOutput(job, branchOutput, TextOutputFormat.class, 
-					IntWritable.class, Text.class);
-			MultipleOutputs.addNamedOutput(job, chainOutput, TextOutputFormat.class,
-					IntWritable.class, Text.class);
-		}
-		else {
-			partitionBranchesChains = false;
-		}
-	}
-	
-	public static String chainOutput() {
-		return chainOutput;
-	}
-	
-	public static String branchOutput() {
-		return chainOutput;
+	public static void setPartitionBranchesChains(boolean doPartition) {
+		partitionBranchesChains = doPartition;
 	}
 	
 	public static boolean getPartitionBranchesChains() {
@@ -133,8 +110,6 @@ public class MRBuildVertices {
 				
 		// The actual mapping function.
 		
-		// HEY!! According to 2.2.0 doc, this function is protected?  If so, change other uses.
-		
 		protected void map(LongWritable key, Text value, Context context) 
 				throws IOException, InterruptedException {
 			ArrayList<MRVertex> vertices = verticesFromInputValue(value);
@@ -164,8 +139,6 @@ public class MRBuildVertices {
 			return new MRVertex(value);
 		}
 		
-		// HEY!! According to 2.2.0 doc, this function is protected?  If so, change other uses.
-		
 		protected void reduce(IntWritable key, Iterable<Text> values, Context context) 
 				throws IOException, InterruptedException {
 			
@@ -173,15 +146,29 @@ public class MRBuildVertices {
 			MRVertex vertex = null;
 			
 			for (Text text : values) {
-				if (MRVertex.getIsMRVertex(text))
-					vertex = createMRVertex(text);
-				else if (MREdge.getIsMREdge(text))
+				if (MRVertex.getIsMRVertex(text)) {
+					if (vertex == null) {
+						vertex = createMRVertex(text);
+					}
+					else {
+						MRVertex tmp = createMRVertex(text);
+						MRVertex.AdjacencyIterator it = tmp.createToAdjacencyIterator();
+						for (int to = it.begin(); !it.done(); to = it.next()) 
+							edges.add(new MREdge(tmp.getId(), to));
+						// HEY!! Include "from" edges, too?
+					}
+				}
+				else if (MREdge.getIsMREdge(text)) {
 					edges.add(new MREdge(text));
+				}
 			}
 			
 			if (vertex != null) {
 				for (MREdge edge : edges)
 					vertex.addEdge(edge);
+				
+				// HEY!! 
+				System.out.println("** " + vertex.toDisplayString() + " **");
 				
 				MRVertex.EdgeFormat format = includeFromEdges ? MRVertex.EdgeFormat.EDGES_TO_FROM : 
 					MRVertex.EdgeFormat.EDGES_TO;
@@ -189,9 +176,9 @@ public class MRBuildVertices {
 				
 				if (partitionBranchesChains) {
 					if (MRVertex.getIsBranch(text))
-						multipleOutputs.write(branchOutput, key, text);
+						multipleOutputs.write(key, text, "branch/part");
 					else
-						multipleOutputs.write(chainOutput, key, text);
+						multipleOutputs.write(key, text, "chain/part");					
 				}
 				else {
 					context.write(key, text);
@@ -202,12 +189,14 @@ public class MRBuildVertices {
 		
 		protected void setup(Context context)
 	            throws IOException, InterruptedException {
-			multipleOutputs = new MultipleOutputs<IntWritable, Text>(context);
+			if (partitionBranchesChains)
+				multipleOutputs = new MultipleOutputs<IntWritable, Text>(context);
 		}
 
 		protected void cleanup(Context context)
 	            throws IOException, InterruptedException {
-			multipleOutputs.close();
+			if (partitionBranchesChains)
+				multipleOutputs.close();
 		}
 		
 		private MultipleOutputs<IntWritable, Text> multipleOutputs = null;
@@ -216,8 +205,5 @@ public class MRBuildVertices {
 	
     private static boolean partitionBranchesChains = false;
     private static boolean includeFromEdges = false;
-
-    private static String branchOutput;
-    private static String chainOutput;
     
 }

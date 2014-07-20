@@ -26,6 +26,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.IOException; 
 import java.nio.charset.Charset;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 
@@ -53,7 +54,7 @@ public class MRVertex {
 	
 	// A special identifier representing no vertex.
 	
-	static final int NO_VERTEX = -1;
+	public static final int NO_VERTEX = -1;
 	
 	public static boolean getAllowEdgeMultiples() {
 		return allowEdgeMultiples;
@@ -78,6 +79,13 @@ public class MRVertex {
 	}
 	
 	public MRVertex(String s) {
+		// HEY!!
+		char[] ca = s.toString().toCharArray();
+		System.out.print("read: ");
+		for (char c : ca)
+			System.out.printf("%02x ", (int) c);
+		System.out.print("\n");
+		
 		edges = new EdgeLink[2];
 		edges[INDEX_EDGES_TO] = null;
 		edges[INDEX_EDGES_FROM] = null;
@@ -139,12 +147,12 @@ public class MRVertex {
 		return toText(edgeFormat, TextFormat.VALUE);
 	}
 	
-	public enum TextFormat { VALUE, KEY_VALUE }
+	public enum TextFormat { VALUE, VALUE_LINE, KEY_VALUE_LINE }
 	
 	public Text toText(EdgeFormat edgeFormat, TextFormat textFormat) {
 		StringBuilder s = new StringBuilder();
 		
-		if (textFormat == TextFormat.KEY_VALUE) {
+		if (textFormat == TextFormat.KEY_VALUE_LINE) {
 			s.append(id);
 			s.append("\t");
 		}
@@ -174,12 +182,32 @@ public class MRVertex {
 		}
 		
 		s.append(SEPARATOR);
-		toTextInternal(s);
 		
-		if (textFormat == TextFormat.KEY_VALUE)
-			s.append("\n");
+		String s1 = s.toString();
+		String s2 = toTextInternal();
+		if (s2 != null)
+			s1 = s1 + s2;
 		
-		return new Text(s.toString());
+		if (textFormat != TextFormat.VALUE)
+			s1 = s1 + "\n";
+		
+		// HEY!!
+		System.out.print("String's chars: ");
+		for (char c : s1.toCharArray())	
+			System.out.printf("%02x ", (int) c);
+		System.out.print("\n");
+		System.out.print("Text's bytes: ");
+		for (byte b : new Text(s1).copyBytes())	
+			System.out.printf("%02x ", (byte) b);
+		System.out.print("\n");
+		System.out.print("Text's bytes, utf-8: ");
+		try {
+			for (byte b : Text.encode(s1).array())	
+				System.out.printf("%02x ", (byte) b);
+			System.out.print("\n");
+		} catch (Exception e) {}
+		
+		return new Text(s1);
 	}
 	
 	// Add an edge that points to the specified vertex from this vertex.
@@ -251,7 +279,8 @@ public class MRVertex {
 	//
 	
 	public int getMergeKey() {
-		int to = getTail();
+		Tail tail = getTail();
+		int to = tail.id;
 		if (to == NO_VERTEX)
 			return getId();
 		
@@ -291,17 +320,20 @@ public class MRVertex {
 	// record that it has an edge from v2. 
 	
 	public void merge(MRVertex other) {
-		int to = getTail();
-		if (to != other.getId())
+		Tail tail = getTail();
+		if (tail.id != other.getId())
 			return;
-		int otherTo = other.getTail();
-		if (otherTo == NO_VERTEX)
+		Tail otherTail = other.getTail();
+		if (otherTail.id == NO_VERTEX)
+			return;
+		if (tail.count != otherTail.count)
 			return;
 		
 		mergeInternal(other);
 		
 		clearEdges();
-		addEdgeTo(otherTo);
+		for (int i = 0; i < tail.count; i++)
+			addEdgeTo(otherTail.id);
 	}
 	
 	//
@@ -343,26 +375,26 @@ public class MRVertex {
 		
 		MRVertex.AdjacencyIterator toIt = createToAdjacencyIterator();
 		if (toIt.begin() != NO_VERTEX) {
-			s.append(": to: ");
+			s.append("; to:");
 			for (int to = toIt.begin(); !toIt.done(); to = toIt.next()) {
-				s.append(to);
 				s.append(" ");
+				s.append(to);
 			}
 		}
 		
 		MRVertex.AdjacencyIterator fromIt = createFromAdjacencyIterator();
 		if (fromIt.begin() != NO_VERTEX) {
-			s.append(": from: ");
+			s.append("; from:");
 			for (int from = fromIt.begin(); !fromIt.done(); from = fromIt.next()) {
-				s.append(from);
 				s.append(" ");
+				s.append(from);
 			}
 		}
 		
 		return s.toString();
 	}
 	
-	static void read(FSDataInputStream in, ArrayList<MRVertex> vertices) throws IOException {
+	public static void read(FSDataInputStream in, ArrayList<MRVertex> vertices) throws IOException {
 		InputStreamReader inReader = new InputStreamReader(in, Charset.forName("UTF-8"));
 		BufferedReader bufferedReader = new BufferedReader(inReader);
 		String line;
@@ -373,9 +405,10 @@ public class MRVertex {
 		}
 	}
 	
-	static void write(FSDataOutputStream out, ArrayList<MRVertex> vertices) throws IOException {
+	public static void write(FSDataOutputStream out, ArrayList<MRVertex> vertices, TextFormat textFormat) 
+			throws IOException {
 		for (MRVertex vertex : vertices) {
-			Text text = vertex.toText(MRVertex.EdgeFormat.EDGES_TO, MRVertex.TextFormat.KEY_VALUE);
+			Text text = vertex.toText(MRVertex.EdgeFormat.EDGES_TO, textFormat);
 			byte[] bytes = text.copyBytes();
 			for (byte b : bytes)
 				out.write(b);
@@ -392,39 +425,61 @@ public class MRVertex {
 	protected void setHeader(StringBuilder s) {
 		char header = (char) (TEXT_TYPE_ID << (16 - NUM_TYPE_BITS));
 		
-		boolean isBranch = false;
-		if ((edges[INDEX_EDGES_TO] != null) && (edges[INDEX_EDGES_TO].next != null))
-			isBranch = true;
-		else if ((edges[INDEX_EDGES_FROM] != null) && (edges[INDEX_EDGES_FROM].next != null))
-			isBranch = true;
-		if (isBranch) {
+		if (isBranch())
 			header |= FLAG_IS_BRANCH;
-		}
 		
 		s.append(header);
 	}
 	
-	protected int getTail() {
-		/* HEY!! Old, does it not work?
-		AdjacencyIterator itTo = createToAdjacencyIterator();
-		int to = itTo.begin();
-		if (itTo.done())
-			return NO_VERTEX;
-		itTo.next();
-		if (!itTo.done())
-			return NO_VERTEX;
-		return to;
-			*/
-		if ((edges[INDEX_EDGES_TO] != null) && (edges[INDEX_EDGES_TO].next == null))
-			return edges[INDEX_EDGES_TO].vertex;
-		else
-			return NO_VERTEX;
+	protected Tail getTail() {
+		int tail = NO_VERTEX;
+		int count = 0;
+		EdgeLink edge = edges[INDEX_EDGES_TO];
+		while (edge != null) {
+			if (tail == NO_VERTEX)
+				tail = edge.vertex;
+			else if (tail != edge.vertex)
+				return new Tail(NO_VERTEX, 0);
+			count++;
+			edge = edge.next;
+		}
+		return new Tail(tail, count);
+	}
+	
+	protected class Tail {
+		public final int id;
+		public final int count;
+		public Tail(int i, int c) { id = i; count = c; }
 	}
 	
 	protected void mergeInternal(MRVertex other) {
 	}
 	
-	protected void toTextInternal(StringBuilder s) {
+	protected String toTextInternal() {
+		return null;
+	}
+	
+	protected boolean isBranch() {
+		if ((edges[INDEX_EDGES_TO] == null) && (edges[INDEX_EDGES_FROM] == null))
+			return false;
+		
+		int vertex = NO_VERTEX;
+		for (EdgeLink edge = edges[INDEX_EDGES_TO]; edge != null; edge = edge.next) {
+			if (vertex == NO_VERTEX)
+				vertex = edge.vertex;
+			else if (vertex != edge.vertex)
+				return true;
+		}
+		
+		vertex = NO_VERTEX;
+		for (EdgeLink edge = edges[INDEX_EDGES_FROM]; edge != null; edge = edge.next) {
+			if (vertex == NO_VERTEX)
+				vertex = edge.vertex;
+			else if (vertex != edge.vertex)
+				return true;
+		}
+
+		return false;
 	}
 	
 	protected void fromTextInternal(String s) {
