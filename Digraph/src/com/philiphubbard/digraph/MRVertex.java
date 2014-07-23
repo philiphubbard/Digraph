@@ -37,7 +37,7 @@ public class MRVertex {
 	
 	public static boolean getIsMRVertex(BytesWritable writable) {
 		byte[] array = writable.getBytes();
-		return (array[0] == TEXT_TYPE_ID);
+		return (array[0] == WRITABLE_TYPE_ID);
 	}
 	
 	public static boolean getIsBranch(BytesWritable writable) {
@@ -110,15 +110,9 @@ public class MRVertex {
 
 	public enum EdgeFormat { EDGES_TO, EDGES_TO_FROM };
 	
-	public enum TextFormat { VALUE, VALUE_LINE, KEY_VALUE_LINE }
-	
 	public enum WritableFormat { VALUE, VALUE_LINE, KEY_VALUE_LINE }
 	
 	public BytesWritable toWritable(EdgeFormat edgeFormat) {
-		return toWritable(edgeFormat, TextFormat.VALUE);
-	}
-		
-	public BytesWritable toWritable(EdgeFormat edgeFormat, TextFormat textFormat) {
 		short numEdgesTo = 0;
 		for (EdgeLink link = edges[INDEX_EDGES_TO]; link != null; link = link.next)
 			numEdgesTo++;
@@ -360,12 +354,7 @@ public class MRVertex {
 		edges[INDEX_EDGES_TO] = null;
 		edges[INDEX_EDGES_FROM] = null;
 
-		// HEY!! Eliminate header, so start at 0?
-		
-		s = s.substring(1);
-		// HEY!! If not writing "from" edges, get the header flag about being a branch or not?
-		
-		// Five parts: header and ID; format; edges to other vertices; edges from other vertices;
+		// Five parts: ID; format; edges to other vertices; edges from other vertices;
 		// subclass data.
 		
 		String[] tokens = s.split(SEPARATOR, 5);
@@ -395,21 +384,8 @@ public class MRVertex {
 	}
 	
 	public Text toText(EdgeFormat edgeFormat) {
-		return toText(edgeFormat, TextFormat.VALUE);
-	}
-	
-	public Text toText(EdgeFormat edgeFormat, TextFormat textFormat) {
 		StringBuilder s = new StringBuilder();
 		
-		// HEY!! Don't need to support all these formats?  Which are needed?
-		if (textFormat == TextFormat.KEY_VALUE_LINE) {
-			s.append(id);
-			s.append("\t");
-		}
-
-		// HEY!! Eliminate header, so start at 0?
-
-		setHeader(s);
 		s.append(id);
 		s.append(SEPARATOR);
 		s.append((edgeFormat == EdgeFormat.EDGES_TO) ? FORMAT_EDGES_TO : 
@@ -440,9 +416,6 @@ public class MRVertex {
 		if (s2 != null)
 			s1 = s1 + s2;
 		
-		if (textFormat != TextFormat.VALUE)
-			s1 = s1 + "\n";
-		
 		return new Text(s1);
 	}
 	
@@ -451,15 +424,6 @@ public class MRVertex {
 	protected static byte getFlags(BytesWritable writable) {
 		byte[] bytes = writable.getBytes();
 		return bytes[1];
-	}
-	
-	protected void setHeader(StringBuilder s) {
-		char header = (char) (TEXT_TYPE_ID << (16 - NUM_TYPE_BITS));
-		
-		if (isBranch())
-			header |= FLAG_IS_BRANCH;
-		
-		s.append(header);
 	}
 	
 	protected Tail getTail() {
@@ -614,10 +578,8 @@ public class MRVertex {
 	
 	private static final byte WRITABLE_TYPE_ID = 1;
 	
-	private static final short NUM_TYPE_BITS = 8;
-	private static final short TEXT_TYPE_ID = 1;
+	private static final byte FLAG_IS_BRANCH = 0x1;
 	
-	private static final short FLAG_IS_BRANCH = 0x1;
 	
 	private static final String FORMAT_EDGES_TO = "t";
 	private static final String FORMAT_EDGES_TO_FROM = "b";

@@ -104,10 +104,11 @@ public class MRBuildVerticesTest {
 		
 		FSDataOutputStream out = fileSystem.create(path);
 		for (MRVertex vertex : vertices) {
-			Text text = vertex.toText(MRVertex.EdgeFormat.EDGES_TO, MRVertex.TextFormat.VALUE_LINE);
+			Text text = vertex.toText(MRVertex.EdgeFormat.EDGES_TO);
 			byte[] bytes = text.copyBytes();
 			for (byte b : bytes)
 				out.write(b);
+			out.write('\n');
 		}
 		out.close();
 		
