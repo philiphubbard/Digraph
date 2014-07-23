@@ -30,14 +30,16 @@ import com.philiphubbard.digraph.MREdge;
 import java.io.IOException;
 import java.util.ArrayList;
 
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
+import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 
 // A mapper and reducer for a Hadoop map-reduce algorithm to collect the edges associated
 // with a vertex, turning vertex descriptions with only the edges pointing out from the
@@ -58,9 +60,11 @@ public class MRBuildVertices {
 		job.setReducerClass(MRBuildVertices.Reducer.class);
 		
 		job.setMapOutputKeyClass(IntWritable.class);
-        job.setMapOutputValueClass(Text.class);
+        job.setMapOutputValueClass(BytesWritable.class);
 		job.setOutputKeyClass(IntWritable.class);
-		job.setOutputValueClass(Text.class);
+		job.setOutputValueClass(BytesWritable.class);
+		
+        job.setOutputFormatClass(SequenceFileOutputFormat.class);  
 
 		FileInputFormat.addInputPath(job, inputPath);
 		FileOutputFormat.setOutputPath(job, outputPath);
@@ -95,7 +99,7 @@ public class MRBuildVertices {
 	// processed MRVertex.
 	
 	public static class Mapper 
-	extends org.apache.hadoop.mapreduce.Mapper<LongWritable, Text, IntWritable, Text> {
+	extends org.apache.hadoop.mapreduce.Mapper<LongWritable, Text, IntWritable, BytesWritable> {
 
 		// By default, this function assumes that the Text value is what would be produced
 		// by MRVertex.toText(MRVerte.FORMAT_EDGES_TO).  Derived classes can override this
@@ -115,12 +119,12 @@ public class MRBuildVertices {
 			ArrayList<MRVertex> vertices = verticesFromInputValue(value);
 			for (MRVertex vertex : vertices) {
 				context.write(new IntWritable(vertex.getId()), 
-							  vertex.toText(MRVertex.EdgeFormat.EDGES_TO));
+							  vertex.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 				
 				MRVertex.AdjacencyIterator itTo = vertex.createToAdjacencyIterator();
 				for (int toId = itTo.begin(); !itTo.done(); toId = itTo.next()) {
 					MREdge edge = new MREdge(vertex.getId(), toId);
-					context.write(new IntWritable(toId), edge.toText());
+					context.write(new IntWritable(toId), edge.toWritable());
 				}
 			}
 		}
@@ -133,33 +137,33 @@ public class MRBuildVertices {
 	// is Text, the description of the processed MRVertex.
 	
 	public static class Reducer 
-	extends org.apache.hadoop.mapreduce.Reducer<IntWritable, Text, IntWritable, Text> {
+	extends org.apache.hadoop.mapreduce.Reducer<IntWritable, BytesWritable, IntWritable, BytesWritable> {
 		
-		protected MRVertex createMRVertex(Text value) {
+		protected MRVertex createMRVertex(BytesWritable value) {
 			return new MRVertex(value);
 		}
 		
-		protected void reduce(IntWritable key, Iterable<Text> values, Context context) 
+		protected void reduce(IntWritable key, Iterable<BytesWritable> values, Context context) 
 				throws IOException, InterruptedException {
 			
 			ArrayList<MREdge> edges = new ArrayList<MREdge>();
 			MRVertex vertex = null;
 			
-			for (Text text : values) {
-				if (MRVertex.getIsMRVertex(text)) {
+			for (BytesWritable value : values) {
+				if (MRVertex.getIsMRVertex(value)) {
 					if (vertex == null) {
-						vertex = createMRVertex(text);
+						vertex = createMRVertex(value);
 					}
 					else {
-						MRVertex tmp = createMRVertex(text);
+						MRVertex tmp = createMRVertex(value);
 						MRVertex.AdjacencyIterator it = tmp.createToAdjacencyIterator();
 						for (int to = it.begin(); !it.done(); to = it.next()) 
 							edges.add(new MREdge(tmp.getId(), to));
 						// HEY!! Include "from" edges, too?
 					}
 				}
-				else if (MREdge.getIsMREdge(text)) {
-					edges.add(new MREdge(text));
+				else if (MREdge.getIsMREdge(value)) {
+					edges.add(new MREdge(value));
 				}
 			}
 			
@@ -172,16 +176,16 @@ public class MRBuildVertices {
 				
 				MRVertex.EdgeFormat format = includeFromEdges ? MRVertex.EdgeFormat.EDGES_TO_FROM : 
 					MRVertex.EdgeFormat.EDGES_TO;
-				Text text = vertex.toText(format);
+				BytesWritable value = vertex.toWritable(format);
 				
 				if (partitionBranchesChains) {
-					if (MRVertex.getIsBranch(text))
-						multipleOutputs.write(key, text, "branch/part");
+					if (MRVertex.getIsBranch(value))
+						multipleOutputs.write(key, value, "branch/part");
 					else
-						multipleOutputs.write(key, text, "chain/part");					
+						multipleOutputs.write(key, value, "chain/part");					
 				}
 				else {
-					context.write(key, text);
+					context.write(key, value);
 				}
 			}
 			
@@ -190,7 +194,7 @@ public class MRBuildVertices {
 		protected void setup(Context context)
 	            throws IOException, InterruptedException {
 			if (partitionBranchesChains)
-				multipleOutputs = new MultipleOutputs<IntWritable, Text>(context);
+				multipleOutputs = new MultipleOutputs<IntWritable, BytesWritable>(context);
 		}
 
 		protected void cleanup(Context context)
@@ -199,7 +203,7 @@ public class MRBuildVertices {
 				multipleOutputs.close();
 		}
 		
-		private MultipleOutputs<IntWritable, Text> multipleOutputs = null;
+		private MultipleOutputs<IntWritable, BytesWritable> multipleOutputs = null;
 
 	}
 	

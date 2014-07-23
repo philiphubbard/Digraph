@@ -4,14 +4,16 @@ import com.philiphubbard.digraph.MRVertex;
 
 import java.io.IOException;
 
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.lib.input.KeyValueTextInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 
 public class MRCompressChains {
 
@@ -31,11 +33,13 @@ public class MRCompressChains {
 		job.setReducerClass(MRCompressChains.Reducer.class);
 		
 		job.setMapOutputKeyClass(IntWritable.class);
-        job.setMapOutputValueClass(Text.class);
+        job.setMapOutputValueClass(BytesWritable.class);
 		job.setOutputKeyClass(IntWritable.class);
-		job.setOutputValueClass(Text.class);
+		job.setOutputValueClass(BytesWritable.class);
 		
-		job.setInputFormatClass(KeyValueTextInputFormat.class);
+		job.setInputFormatClass(SequenceFileInputFormat.class);
+        job.setOutputFormatClass(SequenceFileOutputFormat.class);  
+
 		
 		Path inputPath;
 		if (iter == 0)
@@ -44,30 +48,12 @@ public class MRCompressChains {
 			inputPath = new Path(outputPathOrig.toString() + (iter - 1));
 		Path outputPath = new Path(outputPathOrig.toString() + iter);
 		
-		KeyValueTextInputFormat.setInputPaths(job, inputPath);
+		FileInputFormat.setInputPaths(job, inputPath);
 		FileOutputFormat.setOutputPath(job, outputPath);
 		
 		// HEY!! 
 		System.out.println("** iteration " + iter + " input \"" + inputPath.toString()
 				+ "\" output \"" + outputPath.toString() + "\" **");
-	}
-	
-	// HEY!! Keep this around, for more control?  Or eliminate, now that other is there?
-	public static void setupJob(Job job, Path inputPath, Path outputPath)
-			throws IOException {
-		job.setJarByClass(MRCompressChains.class);
-		job.setMapperClass(MRCompressChains.Mapper.class);
-		job.setCombinerClass(MRCompressChains.Reducer.class);
-		job.setReducerClass(MRCompressChains.Reducer.class);
-		
-		job.setMapOutputKeyClass(IntWritable.class);
-        job.setMapOutputValueClass(Text.class);
-		job.setOutputKeyClass(IntWritable.class);
-		job.setOutputValueClass(Text.class);
-		
-		job.setInputFormatClass(KeyValueTextInputFormat.class);
-		KeyValueTextInputFormat.setInputPaths(job, inputPath);
-		FileOutputFormat.setOutputPath(job, outputPath);	
 	}
 	
 	public static boolean continueIteration(Job job, Path inputPathOrig, Path outputPathOrig) 
@@ -108,17 +94,13 @@ public class MRCompressChains {
 }
 
 	public static class Mapper 
-	// HEY!! Old, before using KeyValueTextInputFormat
-	// extends org.apache.hadoop.mapreduce.Mapper<LongWritable, Text, IntWritable, Text> {
-	extends org.apache.hadoop.mapreduce.Mapper<Text, Text, IntWritable, Text> {
+	extends org.apache.hadoop.mapreduce.Mapper<IntWritable, BytesWritable, IntWritable, BytesWritable> {
 
-		protected MRVertex createMRVertex(Text value) {
+		protected MRVertex createMRVertex(BytesWritable value) {
 			return new MRVertex(value);
 		}
 		
-		// HEY!! Old, before using KeyValueTextInputFormat
-		//protected void map(LongWritable key, Text value, Context context) 
-		protected void map(Text key, Text value, Context context) 
+		protected void map(IntWritable key, BytesWritable value, Context context) 
 				throws IOException, InterruptedException {
 			if (MRVertex.getIsBranch(value))
 				throw new IOException("MRCompressChains.Mapper.map(): input vertex is a branch");
@@ -127,24 +109,24 @@ public class MRCompressChains {
 			
 			// HEY!! Error checking.
 			IntWritable keyOut = new IntWritable(vertex.getMergeKey());
-			context.write(keyOut, vertex.toText(MRVertex.EdgeFormat.EDGES_TO));
+			context.write(keyOut, vertex.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 		}
 	}
 
 	// HEY!! What should the key be?
 	public static class Reducer 
-	extends org.apache.hadoop.mapreduce.Reducer<IntWritable, Text, IntWritable, Text> {
+	extends org.apache.hadoop.mapreduce.Reducer<IntWritable, BytesWritable, IntWritable, BytesWritable> {
 
-		protected MRVertex createMRVertex(Text value) {
+		protected MRVertex createMRVertex(BytesWritable value) {
 			return new MRVertex(value);
 		}
 		
-		protected void reduce(IntWritable key, Iterable<Text> values, Context context) 
+		protected void reduce(IntWritable key, Iterable<BytesWritable> values, Context context) 
 				throws IOException, InterruptedException {
 			MRVertex vertex1 = null;
 			MRVertex vertex2 = null;
 			
-			for (Text value : values) {
+			for (BytesWritable value : values) {
 				if (MRVertex.getIsBranch(value))
 					throw new IOException("MRCompressChains.Reducer.reduce(): input vertex is a branch");
 
@@ -162,7 +144,7 @@ public class MRCompressChains {
 			
 			if (vertex2 == null) {
 				IntWritable keyOut = new IntWritable(vertex1.getId());
-				context.write(keyOut, vertex1.toText(MRVertex.EdgeFormat.EDGES_TO));
+				context.write(keyOut, vertex1.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 			}
 			else {
 				int mergeKey = key.get();
@@ -175,17 +157,17 @@ public class MRCompressChains {
 				
 				if (vertexMerged.getId() != MRVertex.NO_VERTEX) {
 					IntWritable keyOut = new IntWritable(vertexMerged.getId());
-					context.write(keyOut, vertexMerged.toText(MRVertex.EdgeFormat.EDGES_TO));
+					context.write(keyOut, vertexMerged.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 				
 					context.getCounter(MergeCounter.numMerges).increment(1);
 				}
 				else {
 					// V1 -> V3 key V3, V2 -> V3 key V3, possible if V3 is a branch.
 					IntWritable keyOut1 = new IntWritable(vertex1.getId());
-					context.write(keyOut1, vertex1.toText(MRVertex.EdgeFormat.EDGES_TO));
+					context.write(keyOut1, vertex1.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 					
 					IntWritable keyOut2 = new IntWritable(vertex2.getId());
-					context.write(keyOut2, vertex2.toText(MRVertex.EdgeFormat.EDGES_TO));
+					context.write(keyOut2, vertex2.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 				}
 			}
 		}

@@ -22,17 +22,10 @@
 
 package com.philiphubbard.digraph;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.IOException; 
-import java.nio.charset.Charset;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashSet;
 
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.BytesWritable;
 
 // A directed-graph vertex for use with Hadoop map-reduce algorithms.
 // To support the distributed nature of map-reduce algorithms, this vertex
@@ -42,14 +35,13 @@ import org.apache.hadoop.io.Text;
 
 public class MRVertex {
 	
-	public static boolean getIsMRVertex(Text text) {
-		int header = text.charAt(0);
-		short type = (short) (header >>> (16 - NUM_TYPE_BITS));
-		return (type == TEXT_TYPE_ID);
+	public static boolean getIsMRVertex(BytesWritable writable) {
+		byte[] array = writable.getBytes();
+		return (array[0] == TEXT_TYPE_ID);
 	}
 	
-	public static boolean getIsBranch(Text text) {
-		return ((getFlags(text) & FLAG_IS_BRANCH) != 0);
+	public static boolean getIsBranch(BytesWritable writable) {
+		return ((getFlags(writable) & FLAG_IS_BRANCH) != 0);
 	}
 	
 	// A special identifier representing no vertex.
@@ -72,61 +64,36 @@ public class MRVertex {
 		clearEdges();
 	}
 	
-	// Constructor, building the vertex from a Hadoop Text (Writable) instance.
+	// Constructor, building the vertex from a Hadoop Writable instance.
 	
-	public MRVertex(Text text) {
-		this(text.toString());
-	}
-	
-	public MRVertex(String s) {
-		// HEY!!
-		char[] ca = s.toString().toCharArray();
-		System.out.print("read: ");
-		for (char c : ca)
-			System.out.printf("%02x ", (int) c);
-		System.out.print("\n");
+	public MRVertex(BytesWritable writable) {
+		byte [] array = writable.getBytes();
+		int i = 2;
+		id = getInt(array, i);
+		i += 4;
 		
 		edges = new EdgeLink[2];
 		edges[INDEX_EDGES_TO] = null;
 		edges[INDEX_EDGES_FROM] = null;
 
-		/* HEY!! Disabled for testing
-		if (!getIsMRVertex(text))
-			return;
-			*/
-		
-		// HEY!!
-		//char header = s.charAt(0);
-		s = s.substring(1);
-		// HEY!! If not writing "from" edges, get the header flag about being a branch or not?
-		
-		// Five parts: header and ID; format; edges to other vertices; edges from other vertices;
-		// subclass data.
-		
-		String[] tokens = s.split(SEPARATOR, 5);
-		
-		// TODO: Add error handling for malformed strings.
-		int iToken = 0;
-		id = Integer.parseInt(tokens[iToken++]);
-		
-		String edgeFormat = tokens[iToken++];
-		
-		String edgesTo = tokens[iToken++];
-		if (!edgesTo.isEmpty()) {
-			for (String edge : edgesTo.split(EDGE_SEPARATOR))
-				addEdgeTo(Integer.parseInt(edge));
+		short numEdgesTo = getShort(array, i);
+		i += 2;
+		for (int j = 0; j < numEdgesTo; j++) {
+			addEdgeTo(getInt(array, i));
+			i += 4;
 		}
 		
-		if (edgeFormat.equals(FORMAT_EDGES_TO_FROM)) {
-			String edgesFrom = tokens[iToken++];
-			if (!edgesFrom.isEmpty()) {
-				for (String edge : edgesFrom.split(EDGE_SEPARATOR))
-					addEdgeFrom(Integer.parseInt(edge));
-			}
+		short numEdgesFrom = getShort(array, i);
+		i += 2;
+		for (int j = 0; j < numEdgesFrom; j++) {
+			addEdgeFrom(getInt(array, i));
+			i += 4;
 		}
 		
-		if (!tokens[iToken].isEmpty())
-			fromTextInternal(tokens[iToken]);
+		short numBytesInternal = getShort(array, i);
+		i += 2;
+		if (numBytesInternal != 0)
+			fromWritableInternal(array, i, numBytesInternal);
 	}
 	
 	// The vertex's identifier.
@@ -143,71 +110,57 @@ public class MRVertex {
 
 	public enum EdgeFormat { EDGES_TO, EDGES_TO_FROM };
 	
-	public Text toText(EdgeFormat edgeFormat) {
-		return toText(edgeFormat, TextFormat.VALUE);
-	}
-	
 	public enum TextFormat { VALUE, VALUE_LINE, KEY_VALUE_LINE }
 	
-	public Text toText(EdgeFormat edgeFormat, TextFormat textFormat) {
-		StringBuilder s = new StringBuilder();
+	public enum WritableFormat { VALUE, VALUE_LINE, KEY_VALUE_LINE }
+	
+	public BytesWritable toWritable(EdgeFormat edgeFormat) {
+		return toWritable(edgeFormat, TextFormat.VALUE);
+	}
 		
-		if (textFormat == TextFormat.KEY_VALUE_LINE) {
-			s.append(id);
-			s.append("\t");
-		}
+	public BytesWritable toWritable(EdgeFormat edgeFormat, TextFormat textFormat) {
+		short numEdgesTo = 0;
+		for (EdgeLink link = edges[INDEX_EDGES_TO]; link != null; link = link.next)
+			numEdgesTo++;
 		
-		setHeader(s);
-		s.append(id);
-		s.append(SEPARATOR);
-		s.append((edgeFormat == EdgeFormat.EDGES_TO) ? FORMAT_EDGES_TO : 
-			FORMAT_EDGES_TO_FROM);
-		s.append(SEPARATOR);
-		EdgeLink link = edges[INDEX_EDGES_TO];
-		while (link != null) {
-			s.append(link.vertex);
-			if (link.next != null)
-				s.append(EDGE_SEPARATOR);
-			link = link.next;
-		}
+		short numEdgesFrom = 0;
 		if (edgeFormat == EdgeFormat.EDGES_TO_FROM) {
-			s.append(SEPARATOR);
-			link = edges[INDEX_EDGES_FROM];
-			while (link != null) {
-				s.append(link.vertex);
-				if (link.next != null)
-					s.append(EDGE_SEPARATOR);
-				link = link.next;
-			}
+			for (EdgeLink link = edges[INDEX_EDGES_FROM]; link != null; link = link.next)
+				numEdgesFrom++;
 		}
 		
-		s.append(SEPARATOR);
+		byte[] internal = toWritableInternal();
 		
-		String s1 = s.toString();
-		String s2 = toTextInternal();
-		if (s2 != null)
-			s1 = s1 + s2;
+		// Header + id + numEdgesTo + edges to + numEdgesFrom + edges from.
+		int numBytes = 2 + 4 + 2 + 4 * numEdgesTo  + 2 + 4 * numEdgesFrom + 2;
+		if (internal != null) 
+			numBytes += internal.length;
+		byte[] result = new byte[numBytes];
+
+		int i = putHeader(result);
+		i = putInt(id, result, i);
 		
-		if (textFormat != TextFormat.VALUE)
-			s1 = s1 + "\n";
+		i = putShort(numEdgesTo, result, i);
+		for (EdgeLink link = edges[INDEX_EDGES_TO]; link != null; link = link.next)
+			i = putInt(link.vertex, result, i);
 		
-		// HEY!!
-		System.out.print("String's chars: ");
-		for (char c : s1.toCharArray())	
-			System.out.printf("%02x ", (int) c);
-		System.out.print("\n");
-		System.out.print("Text's bytes: ");
-		for (byte b : new Text(s1).copyBytes())	
-			System.out.printf("%02x ", (byte) b);
-		System.out.print("\n");
-		System.out.print("Text's bytes, utf-8: ");
-		try {
-			for (byte b : Text.encode(s1).array())	
-				System.out.printf("%02x ", (byte) b);
-			System.out.print("\n");
-		} catch (Exception e) {}
+		i = putShort(numEdgesFrom, result, i);
+		if (edgeFormat == EdgeFormat.EDGES_TO_FROM) {
+			for (EdgeLink link = edges[INDEX_EDGES_FROM]; link != null; link = link.next) 
+				i = putInt(link.vertex, result, i);
+		}
+			
+		if (internal != null) {
+			// HEY!! Exception if internal.length exceeds short.
+			i = putShort((short) internal.length, result, i);
+			for (byte b : internal)
+				result[i++] = b;
+		}
+		else {
+			i = putShort((short) 0, result, i);
+		}
 		
-		return new Text(s1);
+		return new BytesWritable(result);
 	}
 	
 	// Add an edge that points to the specified vertex from this vertex.
@@ -394,32 +347,110 @@ public class MRVertex {
 		return s.toString();
 	}
 	
-	public static void read(FSDataInputStream in, ArrayList<MRVertex> vertices) throws IOException {
-		InputStreamReader inReader = new InputStreamReader(in, Charset.forName("UTF-8"));
-		BufferedReader bufferedReader = new BufferedReader(inReader);
-		String line;
-		while((line = bufferedReader.readLine()) != null) {
-			String[] tokens = line.split("\t", 2);
-			MRVertex vertex = new MRVertex(tokens[1]);
-			vertices.add(vertex);
-		}
+	//
+	
+	// Text routines are for debugging only.
+	
+	public MRVertex(Text text) {
+		this(text.toString());
 	}
 	
-	public static void write(FSDataOutputStream out, ArrayList<MRVertex> vertices, TextFormat textFormat) 
-			throws IOException {
-		for (MRVertex vertex : vertices) {
-			Text text = vertex.toText(MRVertex.EdgeFormat.EDGES_TO, textFormat);
-			byte[] bytes = text.copyBytes();
-			for (byte b : bytes)
-				out.write(b);
+	public MRVertex(String s) {
+		edges = new EdgeLink[2];
+		edges[INDEX_EDGES_TO] = null;
+		edges[INDEX_EDGES_FROM] = null;
+
+		// HEY!! Eliminate header, so start at 0?
+		
+		s = s.substring(1);
+		// HEY!! If not writing "from" edges, get the header flag about being a branch or not?
+		
+		// Five parts: header and ID; format; edges to other vertices; edges from other vertices;
+		// subclass data.
+		
+		String[] tokens = s.split(SEPARATOR, 5);
+		
+		// TODO: Add error handling for malformed strings.
+		int iToken = 0;
+		id = Integer.parseInt(tokens[iToken++]);
+		
+		String edgeFormat = tokens[iToken++];
+		
+		String edgesTo = tokens[iToken++];
+		if (!edgesTo.isEmpty()) {
+			for (String edge : edgesTo.split(EDGE_SEPARATOR))
+				addEdgeTo(Integer.parseInt(edge));
 		}
+		
+		if (edgeFormat.equals(FORMAT_EDGES_TO_FROM)) {
+			String edgesFrom = tokens[iToken++];
+			if (!edgesFrom.isEmpty()) {
+				for (String edge : edgesFrom.split(EDGE_SEPARATOR))
+					addEdgeFrom(Integer.parseInt(edge));
+			}
+		}
+		
+		if (!tokens[iToken].isEmpty())
+			fromTextInternal(tokens[iToken]);
+	}
+	
+	public Text toText(EdgeFormat edgeFormat) {
+		return toText(edgeFormat, TextFormat.VALUE);
+	}
+	
+	public Text toText(EdgeFormat edgeFormat, TextFormat textFormat) {
+		StringBuilder s = new StringBuilder();
+		
+		// HEY!! Don't need to support all these formats?  Which are needed?
+		if (textFormat == TextFormat.KEY_VALUE_LINE) {
+			s.append(id);
+			s.append("\t");
+		}
+
+		// HEY!! Eliminate header, so start at 0?
+
+		setHeader(s);
+		s.append(id);
+		s.append(SEPARATOR);
+		s.append((edgeFormat == EdgeFormat.EDGES_TO) ? FORMAT_EDGES_TO : 
+			FORMAT_EDGES_TO_FROM);
+		s.append(SEPARATOR);
+		EdgeLink link = edges[INDEX_EDGES_TO];
+		while (link != null) {
+			s.append(link.vertex);
+			if (link.next != null)
+				s.append(EDGE_SEPARATOR);
+			link = link.next;
+		}
+		if (edgeFormat == EdgeFormat.EDGES_TO_FROM) {
+			s.append(SEPARATOR);
+			link = edges[INDEX_EDGES_FROM];
+			while (link != null) {
+				s.append(link.vertex);
+				if (link.next != null)
+					s.append(EDGE_SEPARATOR);
+				link = link.next;
+			}
+		}
+		
+		s.append(SEPARATOR);
+		
+		String s1 = s.toString();
+		String s2 = toTextInternal();
+		if (s2 != null)
+			s1 = s1 + s2;
+		
+		if (textFormat != TextFormat.VALUE)
+			s1 = s1 + "\n";
+		
+		return new Text(s1);
 	}
 	
 	//
 	
-	protected static short getFlags(Text text) {
-		int header = text.charAt(0);
-		return (short) (header & FLAGS_MASK);
+	protected static byte getFlags(BytesWritable writable) {
+		byte[] bytes = writable.getBytes();
+		return bytes[1];
 	}
 	
 	protected void setHeader(StringBuilder s) {
@@ -455,8 +486,12 @@ public class MRVertex {
 	protected void mergeInternal(MRVertex other) {
 	}
 	
-	protected String toTextInternal() {
+	protected byte[] toWritableInternal() {
 		return null;
+	}
+	
+	
+	protected void fromWritableInternal(byte[] array, int i, int n) {
 	}
 	
 	protected boolean isBranch() {
@@ -482,10 +517,59 @@ public class MRVertex {
 		return false;
 	}
 	
+	//
+	
+	// For debugging only.
+	
+	protected String toTextInternal() {
+		return null;
+	}
+	
 	protected void fromTextInternal(String s) {
 	}
 	
 	//
+	
+	private int putHeader(byte[] bytes) {
+		bytes[0] = WRITABLE_TYPE_ID;
+		byte flags = 0;
+		if (isBranch())
+			flags |= FLAG_IS_BRANCH;
+		bytes[1] = flags;
+		return 2;
+	}
+	
+	private int putShort(short value, byte[] array, int i) {
+		// 16 bits
+		array[i] = (byte) ((value & 0xff00) >>> 8);
+		array[i+1] = (byte) (value & 0xff);
+		return i + 2;
+	}
+	
+	private short getShort(byte[] array, int i) {
+		short result = 0;
+		result |= (array[i] << 8);
+		result |= array[i+1];
+		return result;
+	}
+	
+	private int putInt(int value, byte[] array, int i) {
+		// 32 bits
+		array[i] = (byte) ((value & 0xff000000) >>> 24);
+		array[i+1] = (byte) ((value & 0xff0000) >>> 16);
+		array[i+2] = (byte) ((value & 0xff00) >>> 8);
+		array[i+3] = (byte) (value & 0xff);
+		return i + 4;
+	}
+	
+	private int getInt(byte[] array, int i) {
+		int result = 0;
+		result |= ((0xff & ((int) array[i])) << 24);
+		result |= ((0xff & ((int) array[i+1])) << 16);
+		result |= ((0xff & ((int) array[i+2])) << 8);
+		result |= (0xff & ((int) array[i+3]));
+		return result;
+	}
 	
 	private void clearEdges() {
 		edges[INDEX_EDGES_TO] = null;
@@ -493,6 +577,8 @@ public class MRVertex {
 	}
 	
 	private void addEdge(int vertex, int which) {
+		// HEY!! Enforce that the number of edges does not exceed a count
+		// that can be stored in a short.
 		if (allowEdgeMultiples) {
 			edges[which] = new EdgeLink(vertex, edges[which]);
 		}
@@ -526,10 +612,11 @@ public class MRVertex {
 	
 	// HEY!! Private or protected?
 	
+	private static final byte WRITABLE_TYPE_ID = 1;
+	
 	private static final short NUM_TYPE_BITS = 8;
 	private static final short TEXT_TYPE_ID = 1;
 	
-	private static final int FLAGS_MASK = 0xFF;
 	private static final short FLAG_IS_BRANCH = 0x1;
 	
 	private static final String FORMAT_EDGES_TO = "t";

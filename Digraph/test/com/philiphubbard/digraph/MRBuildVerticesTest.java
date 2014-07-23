@@ -29,11 +29,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 
 import com.philiphubbard.digraph.MRBuildVertices;
@@ -93,10 +96,19 @@ public class MRBuildVerticesTest {
 		vertices.add(v5);
 		
 		MRVertex v6 = new MRVertex(6);
+		v6.addEdgeTo(7);
 		vertices.add(v6);
 		
+		MRVertex v7 = new MRVertex(7);
+		vertices.add(v7);
+		
 		FSDataOutputStream out = fileSystem.create(path);
-		MRVertex.write(out, vertices, MRVertex.TextFormat.VALUE_LINE);
+		for (MRVertex vertex : vertices) {
+			Text text = vertex.toText(MRVertex.EdgeFormat.EDGES_TO, MRVertex.TextFormat.VALUE_LINE);
+			byte[] bytes = text.copyBytes();
+			for (byte b : bytes)
+				out.write(b);
+		}
 		out.close();
 		
 		fileSystem.close();
@@ -108,16 +120,8 @@ public class MRBuildVerticesTest {
 		ArrayList<MRVertex> branch = new ArrayList<MRVertex>();
 		
 		FileStatus[] branchFiles = fileSystem.listStatus(new Path(testOutput + "/branch"));
-		for (FileStatus status : branchFiles) {
-			Path path = status.getPath();
-			if (path.getName().startsWith("part")) {
-				System.out.println(path); 
-				
-				FSDataInputStream in = fileSystem.open(path);
-				MRVertex.read(in, branch);
-				in.close();
-			}
-		}
+		for (FileStatus status : branchFiles)
+			readVertices(status, branch, conf);
 		
 		for (MRVertex vertex : branch) 
 			System.out.println(vertex.toDisplayString());
@@ -125,16 +129,8 @@ public class MRBuildVerticesTest {
 		ArrayList<MRVertex> chain = new ArrayList<MRVertex>();
 		
 		FileStatus[] chainFiles = fileSystem.listStatus(new Path(testOutput + "/chain"));
-		for (FileStatus status : chainFiles) {
-			Path path = status.getPath();
-			if (path.getName().startsWith("part")) {
-				System.out.println(path); 
-				
-				FSDataInputStream in = fileSystem.open(path);
-				MRVertex.read(in, chain);
-				in.close();
-			}
-		}
+		for (FileStatus status : chainFiles) 
+			readVertices(status, chain, conf);
 		
 		for (MRVertex vertex : chain) 
 			System.out.println(vertex.toDisplayString());
@@ -143,6 +139,21 @@ public class MRBuildVerticesTest {
 		fileSystem.delete(new Path(testOutput), true);
 		
 		fileSystem.close();
+	}
+	
+	private static void readVertices(FileStatus status, ArrayList<MRVertex> vertices, Configuration conf)
+			throws IOException {
+		Path path = status.getPath();
+		if (path.getName().startsWith("part")) {
+			System.out.println(path); 
+			
+		    SequenceFile.Reader reader = new SequenceFile.Reader(conf, SequenceFile.Reader.file(path));
+		    IntWritable key = new IntWritable();
+		    BytesWritable value = new BytesWritable();
+		    while (reader.next(key, value))
+		    	vertices.add(new MRVertex(value));
+		    reader.close();
+		}
 	}
 	
 	private static String testInput = new String("MRBuildVerticesTest_in.txt");

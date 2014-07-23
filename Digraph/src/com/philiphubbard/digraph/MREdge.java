@@ -1,13 +1,12 @@
 package com.philiphubbard.digraph;
 
-import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.BytesWritable;
 
 public class MREdge {
 
-	public static boolean getIsMREdge(Text text) {
-		int header = text.charAt(0);
-		short type = (short) (header >>> (16 - NUM_TYPE_BITS));
-		return (type == TEXT_TYPE_ID);
+	public static boolean getIsMREdge(BytesWritable writable) {
+		byte [] bytes = writable.getBytes();
+		return (bytes[0] == WRITABLE_TYPE_ID);
 	}
 	
 	public MREdge(int from, int to) {
@@ -15,24 +14,21 @@ public class MREdge {
 		this.to = to;
 	}
 	
-	public MREdge(Text text) {
-		String s = text.toString();
-		// HEY!!
-		//char header = s.charAt(0);
-		s = s.substring(1);
-		String[] tokens = s.split(SEPARATOR);
-		// HEY!! Add error handling for tokens not being the right length.
-		from = Integer.parseInt(tokens[0]);
-		to = Integer.parseInt(tokens[1]);
+	public MREdge(BytesWritable writable) {
+		byte [] bytes = writable.getBytes();
+		from = getInt(bytes, 1);
+		to = getInt(bytes, 5);
 	}
-	
-	public Text toText() {
-		StringBuilder s = new StringBuilder();
-		setHeader(s);
-		s.append(from);
-		s.append(SEPARATOR);
-		s.append(to);
-		return new Text(s.toString());
+
+	public BytesWritable toWritable() {
+		int numBytes = 1 + 4 + 4;
+		byte[] result = new byte[numBytes];
+		
+		int i = putHeader(result);
+		i = putInt(from, result, i);
+		i = putInt(to, result, i);
+		
+		return new BytesWritable(result);
 	}
 	
 	public int getFrom() {
@@ -43,15 +39,31 @@ public class MREdge {
 		return to;
 	}
 	
-	protected void setHeader(StringBuilder s) {
-		char header = (char) (TEXT_TYPE_ID << (16 - NUM_TYPE_BITS));
-		s.append(header);
+	protected int putHeader(byte[] array) {
+		array[0] = WRITABLE_TYPE_ID;
+		return 1;
 	}
 	
-	private static final short NUM_TYPE_BITS = 8;
-	private static final short TEXT_TYPE_ID = 2;
+	private int putInt(int value, byte[] array, int i) {
+		// 32 bits
+		array[i] = (byte) ((value & 0xff000000) >>> 24);
+		array[i+1] = (byte) ((value & 0xff0000) >>> 16);
+		array[i+2] = (byte) ((value & 0xff00) >>> 8);
+		array[i+3] = (byte) (value & 0xff);
+		return i + 4;
+	}
+	
+	private int getInt(byte[] array, int i) {
+		int result = 0;
+		result |= ((0xff & ((int) array[i])) << 24);
+		result |= ((0xff & ((int) array[i+1])) << 16);
+		result |= ((0xff & ((int) array[i+2])) << 8);
+		result |= (0xff & ((int) array[i+3]));
+		return result;
+	}
+	
+	private static final byte WRITABLE_TYPE_ID = 2;
 
 	private int from;
 	private int to;
-	private static final String SEPARATOR = ",";
 }

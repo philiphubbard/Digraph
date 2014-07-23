@@ -29,12 +29,14 @@ import com.philiphubbard.digraph.MRCompressChains;
 
 import java.util.ArrayList;
 import java.io.IOException; 
+
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.mapreduce.Job;
 
 public class MRCompressChainsTest {
@@ -88,9 +90,13 @@ public class MRCompressChainsTest {
 				vertex.addEdgeTo(i+1);
 		}
 		
-		FSDataOutputStream out = fileSystem.create(path);
-		MRVertex.write(out, vertices, MRVertex.TextFormat.KEY_VALUE_LINE);
-		out.close();
+	    SequenceFile.Writer writer = SequenceFile.createWriter(conf, 
+	    		SequenceFile.Writer.file(path), 
+	    		SequenceFile.Writer.keyClass(IntWritable.class), 
+	    		SequenceFile.Writer.valueClass(BytesWritable.class));
+	    for (MRVertex vertex : vertices) 
+	    	writer.append(new IntWritable(vertex.getId()), vertex.toWritable(MRVertex.EdgeFormat.EDGES_TO));
+	    writer.close();
 		
 		fileSystem.close();
 	}
@@ -106,9 +112,12 @@ public class MRCompressChainsTest {
 			if (path.getName().startsWith("part")) {
 				System.out.println(path); 
 				
-				FSDataInputStream in = fileSystem.open(path);
-				MRVertex.read(in, vertices);
-				in.close();
+			    SequenceFile.Reader reader = new SequenceFile.Reader(conf, SequenceFile.Reader.file(path));
+			    IntWritable key = new IntWritable();
+			    BytesWritable value = new BytesWritable();
+			    while (reader.next(key, value))
+			    	vertices.add(new MRVertex(value));
+			    reader.close();
 			}
 		}
 		
