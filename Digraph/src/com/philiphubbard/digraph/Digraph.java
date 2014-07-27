@@ -44,6 +44,8 @@ public abstract class Digraph<E extends Digraph.Edge> {
 			edges.add(null);
 	}
 	
+	public static final int NO_VERTEX = -1;
+	
 	// A base class for the edges of the graph.
 	
 	public static class Edge {
