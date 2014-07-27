@@ -35,39 +35,23 @@ import org.apache.hadoop.io.BytesWritable;
 
 public class MRVertex {
 	
-	public static boolean getIsMRVertex(BytesWritable writable) {
-		byte[] array = writable.getBytes();
-		return (array[0] == WRITABLE_TYPE_ID);
-	}
-	
-	public static boolean getIsBranch(BytesWritable writable) {
-		return ((getFlags(writable) & FLAG_IS_BRANCH) != 0);
-	}
-	
-	// A special identifier representing no vertex.
-	
-	public static final int NO_VERTEX = -1;
-	
-	public static boolean getAllowEdgeMultiples() {
-		return allowEdgeMultiples;
-	}
-	
-	public static void setAllowEdgeMultiples(boolean doAllow) {
-		allowEdgeMultiples = doAllow;
-	}
-	
 	// Constructor, specifying the identifier for this vertex.
 	
 	public MRVertex(int id) {
 		this.id = id;
+		flags = (byte) 0;
 		edges = new EdgeLink[2];
-		clearEdges();
+		edges[INDEX_EDGES_TO] = null;
+		edges[INDEX_EDGES_FROM] = null;				
 	}
 	
 	// Constructor, building the vertex from a Hadoop Writable instance.
 	
 	public MRVertex(BytesWritable writable) {
 		byte [] array = writable.getBytes();
+		
+		flags = array[1];
+		
 		int i = 2;
 		id = getInt(array, i);
 		i += 4;
@@ -102,6 +86,10 @@ public class MRVertex {
 		return id;
 	}
 	
+	// A special identifier representing no vertex.
+	
+	public static final int NO_VERTEX = -1;
+	
 	// Write this vertex to a Hadoop Text (Writable) instance.
 	// The format argument specifies whether to write only the edges
 	// pointing to other vertices from this vertex, or to write both
@@ -131,7 +119,10 @@ public class MRVertex {
 			numBytes += internal.length;
 		byte[] result = new byte[numBytes];
 
-		int i = putHeader(result);
+		result[0] = WRITABLE_TYPE_ID;
+		result[1] = flags;
+
+		int i = 2;
 		i = putInt(id, result, i);
 		
 		i = putShort(numEdgesTo, result, i);
@@ -157,16 +148,45 @@ public class MRVertex {
 		return new BytesWritable(result);
 	}
 	
+	//
+	
+	public static boolean getAllowEdgeMultiples() {
+		return allowEdgeMultiples;
+	}
+	
+	public static void setAllowEdgeMultiples(boolean doAllow) {
+		allowEdgeMultiples = doAllow;
+	}
+	
 	// Add an edge that points to the specified vertex from this vertex.
 	
 	public void addEdgeTo(int to) {
 		addEdge(to, INDEX_EDGES_TO);
+		
+		// Recompute the branch status with the new edge only if this vertex
+		// was not already a branch, since the previous conclusion that this vertex
+		// was a branch may have been based on edges from other vertices that are
+		// not stored with this vertex.
+		
+		if (!getIsBranch())
+			computeIsBranch();
+		
+		if (getIsSink())
+			computeIsSourceSink();
 	}
 	
 	// Add an edge that points from the specified vertex to this vertex.
 	
 	public void addEdgeFrom(int from) {
 		addEdge(from, INDEX_EDGES_FROM);
+		
+		// See the comment in addEdgeTo().
+		
+		if (!getIsBranch())
+			computeIsBranch();
+		
+		if (getIsSource())
+			computeIsSourceSink();
 	}
 	
 	public void addEdge(MREdge edge) {
@@ -225,6 +245,84 @@ public class MRVertex {
 	
 	//
 	
+	// The compute...() routines must be called for the get...() routines to be accurate.
+	// Even then, they may not stay accurate, given the distributed nature of the graph.
+	
+	public void computeIsBranch() {
+		flags &= ~FLAG_IS_BRANCH;
+		
+		int vertex = NO_VERTEX;
+		for (EdgeLink edge = edges[INDEX_EDGES_TO]; edge != null; edge = edge.next) {
+			if (vertex == NO_VERTEX) {
+				vertex = edge.vertex;
+			}
+			else if (vertex != edge.vertex) {
+				flags |= FLAG_IS_BRANCH;
+				return;
+			}
+		}
+		
+		vertex = NO_VERTEX;
+		for (EdgeLink edge = edges[INDEX_EDGES_FROM]; edge != null; edge = edge.next) {
+			if (vertex == NO_VERTEX) {
+				vertex = edge.vertex;
+			}
+			else if (vertex != edge.vertex) {
+				flags |= FLAG_IS_BRANCH;
+				return;
+			}
+		}
+	}
+	
+	public void computeIsSourceSink() {
+		short numEdgesToOthers = 0;
+		for (EdgeLink link = edges[INDEX_EDGES_TO]; link != null; link = link.next)
+			numEdgesToOthers++;
+		
+		short numEdgesFromOthers = 0;
+		for (EdgeLink link = edges[INDEX_EDGES_FROM]; link != null; link = link.next)
+			numEdgesFromOthers++;
+		
+		flags &= ~FLAG_IS_SOURCE;
+		flags &= ~FLAG_IS_SINK;
+		
+		if ((numEdgesToOthers > 0) && (numEdgesFromOthers == 0))
+			flags |= FLAG_IS_SOURCE;
+		if ((numEdgesToOthers == 0) && (numEdgesFromOthers > 0))
+			flags |= FLAG_IS_SINK;
+	}
+	
+	public boolean getIsBranch() {
+		return ((flags & FLAG_IS_BRANCH) != 0);
+	}
+
+	public boolean getIsSource() {
+		return ((flags & FLAG_IS_SOURCE) != 0);
+	}
+
+	public boolean getIsSink() {
+		return ((flags & FLAG_IS_SINK) != 0);
+	}
+
+	public static boolean getIsMRVertex(BytesWritable writable) {
+		byte[] array = writable.getBytes();
+		return (array[0] == WRITABLE_TYPE_ID);
+	}
+	
+	public static boolean getIsBranch(BytesWritable writable) {
+		return ((getFlags(writable) & FLAG_IS_BRANCH) != 0);
+	}
+	
+	public static boolean getIsSource(BytesWritable writable) {
+		return ((getFlags(writable) & FLAG_IS_SOURCE) != 0);
+	}
+	
+	public static boolean getIsSink(BytesWritable writable) {
+		return ((getFlags(writable) & FLAG_IS_SINK) != 0);
+	}
+	
+	//
+	
 	public int getMergeKey() {
 		Tail tail = getTail();
 		int to = tail.id;
@@ -250,15 +348,19 @@ public class MRVertex {
 	public static MRVertex merge(MRVertex v1, MRVertex v2, int key) {
 		if (key != NO_VERTEX) {
 			if (key == v1.getId()) {
-				v2.merge(v1);
-				return v2;
+				if (!v2.merge(v1))
+					return null;
+				else
+					return v2;
 			}
 			else if (key == v2.getId()) {
-				v1.merge(v2);
-				return v1;
+				if (!v1.merge(v2))
+					return null;
+				else
+					return v1;
 			}
 		}
-		return new MRVertex(NO_VERTEX);
+		return null;
 	}
 	
 	// Note that after merging, it does not make sense to call toText()
@@ -266,21 +368,25 @@ public class MRVertex {
 	// E.g., if v1->v2, v2->v3, after merging v1 and v2, v3 will still
 	// record that it has an edge from v2. 
 	
-	public void merge(MRVertex other) {
+	public boolean merge(MRVertex other) {
 		Tail tail = getTail();
 		if (tail.id != other.getId())
-			return;
+			return false;
 		Tail otherTail = other.getTail();
 		if (otherTail.id == NO_VERTEX)
-			return;
+			return false;
 		if (tail.count != otherTail.count)
-			return;
+			return false;
 		
 		mergeInternal(other);
 		
-		clearEdges();
+		edges[INDEX_EDGES_TO] = null;
+		edges[INDEX_EDGES_FROM] = null;		
+		
 		for (int i = 0; i < tail.count; i++)
-			addEdgeTo(otherTail.id);
+			addEdge(otherTail.id, INDEX_EDGES_TO);
+		
+		return true;
 	}
 	
 	//
@@ -458,29 +564,6 @@ public class MRVertex {
 	protected void fromWritableInternal(byte[] array, int i, int n) {
 	}
 	
-	protected boolean isBranch() {
-		if ((edges[INDEX_EDGES_TO] == null) && (edges[INDEX_EDGES_FROM] == null))
-			return false;
-		
-		int vertex = NO_VERTEX;
-		for (EdgeLink edge = edges[INDEX_EDGES_TO]; edge != null; edge = edge.next) {
-			if (vertex == NO_VERTEX)
-				vertex = edge.vertex;
-			else if (vertex != edge.vertex)
-				return true;
-		}
-		
-		vertex = NO_VERTEX;
-		for (EdgeLink edge = edges[INDEX_EDGES_FROM]; edge != null; edge = edge.next) {
-			if (vertex == NO_VERTEX)
-				vertex = edge.vertex;
-			else if (vertex != edge.vertex)
-				return true;
-		}
-
-		return false;
-	}
-	
 	//
 	
 	// For debugging only.
@@ -493,15 +576,6 @@ public class MRVertex {
 	}
 	
 	//
-	
-	private int putHeader(byte[] bytes) {
-		bytes[0] = WRITABLE_TYPE_ID;
-		byte flags = 0;
-		if (isBranch())
-			flags |= FLAG_IS_BRANCH;
-		bytes[1] = flags;
-		return 2;
-	}
 	
 	private int putShort(short value, byte[] array, int i) {
 		// 16 bits
@@ -533,11 +607,6 @@ public class MRVertex {
 		result |= ((0xff & ((int) array[i+2])) << 8);
 		result |= (0xff & ((int) array[i+3]));
 		return result;
-	}
-	
-	private void clearEdges() {
-		edges[INDEX_EDGES_TO] = null;
-		edges[INDEX_EDGES_FROM] = null;		
 	}
 	
 	private void addEdge(int vertex, int which) {
@@ -579,7 +648,8 @@ public class MRVertex {
 	private static final byte WRITABLE_TYPE_ID = 1;
 	
 	private static final byte FLAG_IS_BRANCH = 0x1;
-	
+	private static final byte FLAG_IS_SOURCE = 0x2;
+	private static final byte FLAG_IS_SINK = 0x4;
 	
 	private static final String FORMAT_EDGES_TO = "t";
 	private static final String FORMAT_EDGES_TO_FROM = "b";
@@ -587,11 +657,12 @@ public class MRVertex {
 	protected static final String SEPARATOR = ";";
 	protected static final String EDGE_SEPARATOR = ",";
 	
-	private int id;
-	
 	private static boolean allowEdgeMultiples = true;
 	
 	private static final int INDEX_EDGES_TO = 0;
 	private static final int INDEX_EDGES_FROM = 1;
+
+	private int id;
+	private byte flags;
 	private EdgeLink[] edges;
 }

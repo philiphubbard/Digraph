@@ -107,6 +107,10 @@ public class MRCompressChains {
 
 			MRVertex vertex = createMRVertex(value);
 			
+			// HEY!!
+			System.out.println("* mapper output vertex " + vertex.getId() + 
+					" source " + vertex.getIsSource() + " sink " + vertex.getIsSink() + " *");
+			
 			// HEY!! Error checking.
 			IntWritable keyOut = new IntWritable(vertex.getMergeKey());
 			context.write(keyOut, vertex.toWritable(MRVertex.EdgeFormat.EDGES_TO));
@@ -155,7 +159,7 @@ public class MRCompressChains {
 				
 				MRVertex vertexMerged = MRVertex.merge(vertex1, vertex2, mergeKey);
 				
-				if (vertexMerged.getId() != MRVertex.NO_VERTEX) {
+				if (vertexMerged != null) {
 					IntWritable keyOut = new IntWritable(vertexMerged.getId());
 					context.write(keyOut, vertexMerged.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 				

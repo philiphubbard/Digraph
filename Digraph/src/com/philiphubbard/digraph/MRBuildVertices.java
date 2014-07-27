@@ -171,6 +171,9 @@ public class MRBuildVertices {
 				for (MREdge edge : edges)
 					vertex.addEdge(edge);
 				
+				vertex.computeIsBranch();
+				vertex.computeIsSourceSink();
+				
 				// HEY!! 
 				System.out.println("** " + vertex.toDisplayString() + " **");
 				
