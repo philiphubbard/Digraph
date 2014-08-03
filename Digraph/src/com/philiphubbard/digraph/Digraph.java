@@ -115,6 +115,67 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	abstract public AdjacencyIterator createAdjacencyIterator(int from)
 			throws IndexOutOfBoundsException;
 	
+	// An iterator over the edges the pointing out from the specified vertex,
+	// returning multiple edges to the same destination vertex in an array.
+	// It can be used in a loop like the following:
+	// "for (Edge e = iterator.begin(); !iterator.done(); e = iterator.next())"
+	
+	public class AdjacencyMultipleIterator  {
+		// Returns the first list of edges to a common vertex in the iteration.
+		
+		public ArrayList<E> begin() {
+			current = graph.edges.get(from);
+			return matchingEdges();
+		}
+		
+		// Returns the next list of edges to a common vertex in the iteration.
+		
+		public ArrayList<E> next() {
+			if (current != null)
+				current = current.next;
+			return matchingEdges();
+		}
+		
+		// Returns true if the iteration is done.
+		
+		public boolean done() {
+			return (current == null);
+		}
+		
+		// The derived class function that creates this iterator should
+		// ensure that the vertex is in range.
+		
+		protected AdjacencyMultipleIterator(Digraph<E> graph, int from) {
+			this.graph = graph;
+			this.from = from;
+			current = null;
+		}
+		
+		private ArrayList<E> matchingEdges() {
+			if (current == null)
+				return null;
+			ArrayList<E> result = new ArrayList<E>();
+			EdgeLink next = current;
+			do {
+				current = next;
+				result.add(current.edge);
+				next = current.next;
+			} while ((next != null) && (next.edge.getTo() == current.edge.getTo()));
+			return result;			
+		}
+		
+		private Digraph<E> graph;
+		private int from;
+		private EdgeLink current;
+	}
+	
+	// A derived class must define this function to create the iterator
+	// for edges from the specified vertex.
+	// Throws IndexOutOfBoundsException if the vertex is out of range.
+	
+	abstract public AdjacencyMultipleIterator createAdjacencyMultipleIterator(int from)
+			throws IndexOutOfBoundsException;
+	
 	// The graph can have vertices with indices in the range from 
 	// 0 to vertexCapacity() - 1.
 	
@@ -154,6 +215,41 @@ public abstract class Digraph<E extends Digraph.Edge> {
 		return inDegrees.get(to);
 	}
 	
+	public boolean isSink(int v) {
+		return (edges.get(v) == null);
+	}
+	
+	public void removeEdge(int from, int to) {
+		EdgeLink link = edges.get(from);
+		EdgeLink prev = null;
+		while (link != null) {
+			if (link.edge.getTo() == to) {
+				if (prev != null)
+					prev.next = link.next;
+				else
+					edges.set(from, link.next);
+				
+				if (inDegrees != null) {
+					int inDegree = inDegrees.get(to);
+					inDegrees.set(link.edge.getTo(), (inDegree != -1) ? inDegree - 1 : 0);
+				}
+				if (outDegrees != null) {
+					int outDegree = outDegrees.get(from);
+					outDegrees.set(from, (outDegree != -1) ? outDegree - 1 : 0);
+				}
+
+				// TODO: Invalidate iterators.
+				
+				break;
+			}
+			else if (to < link.edge.getTo()) {
+				break;
+			}
+			prev = link;
+			link = link.next;	
+		}		
+	}
+	
 	//
 	
 	protected void addEdge(int from, E newEdge) {
@@ -161,26 +257,30 @@ public abstract class Digraph<E extends Digraph.Edge> {
 			return;
 		if ((newEdge.getTo() < 0) || (edges.size() <= newEdge.getTo()))
 			return;
-		if (allowMultiples) {
-			edges.set(from, new EdgeLink(newEdge, edges.get(from)));
-		}
-		else {
-			// Keep edges sorted by getTo() to improve average-case performance.
-			EdgeLink link = edges.get(from);
-			EdgeLink prev = null;
-			while (link != null) {
-				if (newEdge.getTo() < link.edge.getTo())
-					break;
-				else if (newEdge.getTo() == link.edge.getTo())
-					return;
-				prev = link;
-				link = link.next;	
+		
+		// Keep edges sorted by getTo() to improve average-case performance
+		// and to support AdjacencyMultipleIterator.
+		
+		EdgeLink link = edges.get(from);
+		EdgeLink prev = null;
+		while (link != null) {
+			if (newEdge.getTo() < link.edge.getTo()) {
+				break;
 			}
-			if (prev == null)
-				edges.set(from, new EdgeLink(newEdge, edges.get(from)));
-			else
-				prev.next = new EdgeLink(newEdge, link);
+			else if (newEdge.getTo() == link.edge.getTo()) {
+				if (allowMultiples)
+					break;
+				else
+					return;
+			}
+			prev = link;
+			link = link.next;	
 		}
+		if (prev == null)
+			edges.set(from, new EdgeLink(newEdge, edges.get(from)));
+		else
+			prev.next = new EdgeLink(newEdge, link);
+
 		if (inDegrees != null) {
 			int inDegree = inDegrees.get(newEdge.getTo());
 			inDegrees.set(newEdge.getTo(), (inDegree == -1) ? 1 : inDegree + 1);
@@ -190,6 +290,8 @@ public abstract class Digraph<E extends Digraph.Edge> {
 			outDegrees.set(from, (outDegree == -1) ? 1 : outDegree + 1);
 		}
 	}
+	
+	//
 	
 	private void cacheDegrees() {
 		if ((inDegrees != null) && (outDegrees != null))

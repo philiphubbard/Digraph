@@ -22,6 +22,8 @@
 
 package com.philiphubbard.digraph;
 
+import java.util.ArrayList;
+
 // A simple directed graph, whose edges just store the index of the vertex
 // pointed to.
 
@@ -82,5 +84,41 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 			throw new IndexOutOfBoundsException("BasicDigraph.createAdjacencyIterator() " +
 											    "vertex out of range");
 		return new AdjacencyIterator(this, from);
+	}
+	
+	// An iterator over the edges the pointing out from the specified vertex,
+	// returning multiple edges to the same destination vertex in an array.
+	// It can be used in a loop like the following:
+	// "for (Edge e = iterator.begin(); !iterator.done(); e = iterator.next())"
+	
+	public class AdjacencyMultipleIterator 
+		extends Digraph<BasicDigraph.Edge>.AdjacencyMultipleIterator {
+		
+		public ArrayList<Edge> begin() {
+			return super.begin();
+		}
+		
+		public ArrayList<Edge> next() {
+			return super.next();
+		}
+
+		public boolean done() {
+			return super.done();
+		}
+		
+		protected AdjacencyMultipleIterator(BasicDigraph graph, int from) {
+			super(graph, from);
+		}
+	}
+	
+	// Create an iterator for the edges out from the specified vertex.
+	// Throws IndexOutOfBoundsException if the vertex is out of range.
+	
+	public AdjacencyMultipleIterator createAdjacencyMultipleIterator(int from) 
+			throws IndexOutOfBoundsException {
+		if ((from < 0) || (getVertexCapacity() <= from))
+			throw new IndexOutOfBoundsException("BasicDigraph.createAdjacencyIterator() " +
+											    "vertex out of range");
+		return new AdjacencyMultipleIterator(this, from);
 	}
 }

@@ -22,6 +22,8 @@
 
 package com.philiphubbard.digraph;
 
+import java.util.ArrayList;
+
 // Confidence tests for the BasicDigraph class.
 // Uses assert(), so must be run with a run configuration that includes "-ea" in the 
 // VM arguments.
@@ -114,6 +116,9 @@ public class BasicDigraphTest {
 		graph.addEdge(1, new BasicDigraph.Edge(2));
 		graph.addEdge(2, new BasicDigraph.Edge(1));
 		graph.addEdge(2, new BasicDigraph.Edge(3));
+		graph.addEdge(2, new BasicDigraph.Edge(4));
+		graph.addEdge(2, new BasicDigraph.Edge(5));
+		graph.addEdge(2, new BasicDigraph.Edge(4));
 		graph.addEdge(2, new BasicDigraph.Edge(3));
 		
 		BasicDigraph.AdjacencyIterator it0 = graph.createAdjacencyIterator(0);
@@ -132,8 +137,29 @@ public class BasicDigraphTest {
 		int numEdges2 = 0;
 		for (it2.begin(); !it2.done(); it2.next())
 			numEdges2++;
-		assert (numEdges2 == 3);
+		assert (numEdges2 == 6);
 		
+		BasicDigraph.AdjacencyMultipleIterator itm2 = graph.createAdjacencyMultipleIterator(2);
+		int[] numMultipleEdges2 = new int[6];
+		for (int i = 0; i < numMultipleEdges2.length; i++)
+			numMultipleEdges2[i] = 0;
+		for (ArrayList<BasicDigraph.Edge> edges = itm2.begin(); !itm2.done(); edges = itm2.next()) {
+			int to = BasicDigraph.NO_VERTEX;
+			for (BasicDigraph.Edge edge : edges) {
+				if (to == BasicDigraph.NO_VERTEX)
+					to = edge.getTo();
+				else
+					assert (to == edge.getTo());
+				numMultipleEdges2[to]++;
+			}
+		}
+		assert (numMultipleEdges2[0] == 0);
+		assert (numMultipleEdges2[1] == 1);
+		assert (numMultipleEdges2[2] == 0);
+		assert (numMultipleEdges2[3] == 2);
+		assert (numMultipleEdges2[4] == 2);
+		assert (numMultipleEdges2[5] == 1);
+
 		BasicDigraph.AdjacencyIterator it3 = graph.createAdjacencyIterator(3);
 		int numEdges3 = 0;
 		for (it3.begin(); !it3.done(); it3.next())
