@@ -323,7 +323,7 @@ public class MRVertex {
 	
 	//
 	
-	public int getMergeKey() {
+	public int getCompressChainKey() {
 		Tail tail = getTail();
 		int to = tail.id;
 		if (to == NO_VERTEX)
@@ -345,16 +345,16 @@ public class MRVertex {
 			return getId();
 	}
 	
-	public static MRVertex merge(MRVertex v1, MRVertex v2, int key) {
+	public static MRVertex compressChain(MRVertex v1, MRVertex v2, int key) {
 		if (key != NO_VERTEX) {
 			if (key == v1.getId()) {
-				if (!v2.merge(v1))
+				if (!v2.compressChain(v1))
 					return null;
 				else
 					return v2;
 			}
 			else if (key == v2.getId()) {
-				if (!v1.merge(v2))
+				if (!v1.compressChain(v2))
 					return null;
 				else
 					return v1;
@@ -368,7 +368,7 @@ public class MRVertex {
 	// E.g., if v1->v2, v2->v3, after merging v1 and v2, v3 will still
 	// record that it has an edge from v2. 
 	
-	public boolean merge(MRVertex other) {
+	public boolean compressChain(MRVertex other) {
 		Tail tail = getTail();
 		if (tail.id != other.getId())
 			return false;
@@ -378,7 +378,7 @@ public class MRVertex {
 		if (tail.count != otherTail.count)
 			return false;
 		
-		mergeInternal(other);
+		compressChainInternal(other);
 		
 		edges[INDEX_EDGES_TO] = null;
 		edges[INDEX_EDGES_FROM] = null;		
@@ -553,7 +553,7 @@ public class MRVertex {
 		public Tail(int i, int c) { id = i; count = c; }
 	}
 	
-	protected void mergeInternal(MRVertex other) {
+	protected void compressChainInternal(MRVertex other) {
 	}
 	
 	protected byte[] toWritableInternal() {

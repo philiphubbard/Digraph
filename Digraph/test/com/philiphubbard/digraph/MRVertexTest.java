@@ -368,7 +368,7 @@ public class MRVertexTest {
 		MRVertex.AdjacencyIterator toIt24 = v24.createToAdjacencyIterator();
 		assert (toIt24.done());
 		
-		MRVertex.merge(v20, v21, 21);
+		MRVertex.compressChain(v20, v21, 21);
 
 		MRVertex.AdjacencyIterator toIt20a = v20.createToAdjacencyIterator();
 		int to20a = 0;
@@ -378,7 +378,7 @@ public class MRVertexTest {
 		}
 		assert (to20a == 1);		
 
-		MRVertex.merge(v22, v23, 23);
+		MRVertex.compressChain(v22, v23, 23);
 
 		MRVertex.AdjacencyIterator toIt22a = v22.createToAdjacencyIterator();
 		int to22a = 0;
@@ -388,7 +388,7 @@ public class MRVertexTest {
 		}
 		assert (to22a == 1);		
 
-		MRVertex.merge(v20, v22, 22);
+		MRVertex.compressChain(v20, v22, 22);
 
 		MRVertex.AdjacencyIterator toIt20b = v20.createToAdjacencyIterator();
 		int to20b = 0;
@@ -417,7 +417,7 @@ public class MRVertexTest {
 			return extra;
 		}
 		
-		protected void mergeInternal(MRVertex other) {
+		protected void compressChainInternal(MRVertex other) {
 			if (other instanceof MRVertexSubclass) {
 				MRVertexSubclass otherSubclass = (MRVertexSubclass) other;
 				extra += otherSubclass.extra;
@@ -504,7 +504,7 @@ public class MRVertexTest {
 		v5.addEdgeTo(6);
 		assert (v5.getExtra() == 11);
 		
-		v4.merge(v5);
+		v4.compressChain(v5);
 		assert (v4.getExtra() == 20);
 
 		System.out.println("MRVertex (subclassing) passed.");

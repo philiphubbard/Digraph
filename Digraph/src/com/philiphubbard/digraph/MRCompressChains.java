@@ -22,7 +22,7 @@ public class MRCompressChains {
 	
 	public static void beginIteration() {
 		iter = 0;
-		numIterWithoutMerges = 0;
+		numIterWithoutCompressions = 0;
 	}
 	
 	public static void setupIterationJob(Job job, Path inputPathOrig, Path outputPathOrig)
@@ -71,12 +71,13 @@ public class MRCompressChains {
 		}
 
 		Counters jobCounters = job.getCounters();
-		long numMerges = jobCounters.findCounter(MRCompressChains.MergeCounter.numMerges).getValue();
-		if (numMerges == 0)
-			numIterWithoutMerges++;
+		long numCompressions = 
+				jobCounters.findCounter(MRCompressChains.CompressionCounter.numCompressions).getValue();
+		if (numCompressions == 0)
+			numIterWithoutCompressions++;
 		else
-			numIterWithoutMerges = 0;
-		boolean keepGoing = (numIterWithoutMerges < 2);
+			numIterWithoutCompressions = 0;
+		boolean keepGoing = (numIterWithoutCompressions < 2);
 
 		if (keepGoing) {
 			iter++;
@@ -112,7 +113,7 @@ public class MRCompressChains {
 					" source " + vertex.getIsSource() + " sink " + vertex.getIsSink() + " *");
 			
 			// HEY!! Error checking.
-			IntWritable keyOut = new IntWritable(vertex.getMergeKey());
+			IntWritable keyOut = new IntWritable(vertex.getCompressChainKey());
 			context.write(keyOut, vertex.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 		}
 	}
@@ -151,19 +152,19 @@ public class MRCompressChains {
 				context.write(keyOut, vertex1.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 			}
 			else {
-				int mergeKey = key.get();
+				int compressionKey = key.get();
 				
 				// HEY!!
-				System.out.println("** merging " + vertex2.toDisplayString() + " into " + vertex1.toDisplayString() 
-						+ " key " + mergeKey + " **");
+				System.out.println("** compressing " + vertex2.toDisplayString() + " into " + vertex1.toDisplayString() 
+						+ " key " + compressionKey + " **");
 				
-				MRVertex vertexMerged = MRVertex.merge(vertex1, vertex2, mergeKey);
+				MRVertex vertexCompressed = MRVertex.compressChain(vertex1, vertex2, compressionKey);
 				
-				if (vertexMerged != null) {
-					IntWritable keyOut = new IntWritable(vertexMerged.getId());
-					context.write(keyOut, vertexMerged.toWritable(MRVertex.EdgeFormat.EDGES_TO));
+				if (vertexCompressed != null) {
+					IntWritable keyOut = new IntWritable(vertexCompressed.getId());
+					context.write(keyOut, vertexCompressed.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 				
-					context.getCounter(MergeCounter.numMerges).increment(1);
+					context.getCounter(CompressionCounter.numCompressions).increment(1);
 				}
 				else {
 					// V1 -> V3 key V3, V2 -> V3 key V3, possible if V3 is a branch.
@@ -177,11 +178,11 @@ public class MRCompressChains {
 		}
 	}
 
-	private static enum MergeCounter {
-		numMerges;
+	private static enum CompressionCounter {
+		numCompressions;
 	}
 	
 	private static int iter;
-	private static int numIterWithoutMerges;
+	private static int numIterWithoutCompressions;
 	
 }
