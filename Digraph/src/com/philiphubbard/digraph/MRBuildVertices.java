@@ -151,16 +151,10 @@ public class MRBuildVertices {
 			
 			for (BytesWritable value : values) {
 				if (MRVertex.getIsMRVertex(value)) {
-					if (vertex == null) {
+					if (vertex == null) 
 						vertex = createMRVertex(value);
-					}
-					else {
-						MRVertex tmp = createMRVertex(value);
-						MRVertex.AdjacencyIterator it = tmp.createToAdjacencyIterator();
-						for (int to = it.begin(); !it.done(); to = it.next()) 
-							edges.add(new MREdge(tmp.getId(), to));
-						// HEY!! Include "from" edges, too?
-					}
+					else 
+						vertex.merge(createMRVertex(value));
 				}
 				else if (MREdge.getIsMREdge(value)) {
 					edges.add(new MREdge(value));

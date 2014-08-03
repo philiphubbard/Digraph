@@ -389,6 +389,17 @@ public class MRVertex {
 		return true;
 	}
 	
+	public void merge(MRVertex other) {
+		if (other.getId() == getId()) {
+			AdjacencyIterator itTo = other.createToAdjacencyIterator();
+			for (int to = itTo.begin(); !itTo.done(); to = itTo.next()) 
+				addEdgeTo(to);
+			AdjacencyIterator itFrom = other.createFromAdjacencyIterator();
+			for (int from = itFrom.begin(); !itFrom.done(); from = itFrom.next()) 
+				addEdgeFrom(from);
+		}
+	}
+	
 	//
 	
 	public boolean equals(MRVertex other) {
