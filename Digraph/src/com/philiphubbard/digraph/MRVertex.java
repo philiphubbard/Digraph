@@ -24,6 +24,7 @@ package com.philiphubbard.digraph;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Random;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.BytesWritable;
@@ -314,8 +315,6 @@ public class MRVertex {
 			return result;			
 		}
 		
-
-		
 		private EdgeLink current;
 		private EdgeLink edges;
 		
@@ -415,26 +414,12 @@ public class MRVertex {
 	
 	//
 	
-	public int getCompressChainKey() {
+	public int getCompressChainKey(Random random) {
 		Tail tail = getTail();
 		int to = tail.id;
 		if (to == NO_VERTEX)
 			return getId();
-		
-		// HEY!! With Java 1.7, can use java.util.concurrent.ThreadLocalRandom?
-		int r = 0;
-		long t = System.nanoTime();
-		t += getId();
-		for (int i = 0; i < 8; i++)
-			r += ((t >>= 1) & 0x1);
-		
-		// HEY!! Debug
-		System.out.println("*** t " + t + " r = " + r + " ***");
-		
-		if (r % 2 == 0)
-			return to;
-		else
-			return getId();
+		return random.nextBoolean() ? to : getId();
 	}
 	
 	public static MRVertex compressChain(MRVertex v1, MRVertex v2, int key) {

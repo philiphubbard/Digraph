@@ -3,6 +3,7 @@ package com.philiphubbard.digraph;
 import com.philiphubbard.digraph.MRVertex;
 
 import java.io.IOException;
+import java.util.Random;
 
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.IntWritable;
@@ -17,9 +18,6 @@ import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 
 public class MRCompressChains {
 
-	// HEY!! Use SequenceFileOutputFormat as a more efficient intermediate format between
-	// multiple map-reduce phases?
-	
 	public static void beginIteration() {
 		iter = 0;
 		numIterWithoutCompressions = 0;
@@ -113,9 +111,11 @@ public class MRCompressChains {
 					" source " + vertex.getIsSource() + " sink " + vertex.getIsSink() + " *");
 			
 			// HEY!! Error checking.
-			IntWritable keyOut = new IntWritable(vertex.getCompressChainKey());
+			IntWritable keyOut = new IntWritable(vertex.getCompressChainKey(random));
 			context.write(keyOut, vertex.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 		}
+		
+		private static Random random = new Random();
 	}
 
 	// HEY!! What should the key be?
