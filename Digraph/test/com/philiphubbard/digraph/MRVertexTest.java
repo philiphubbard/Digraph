@@ -26,10 +26,12 @@
 
 package com.philiphubbard.digraph;
 
-import com.philiphubbard.digraph.MRVertex;
+import java.util.ArrayList;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.BytesWritable;
+
+import com.philiphubbard.digraph.MRVertex;
 
 public class MRVertexTest {
 
@@ -116,6 +118,33 @@ public class MRVertexTest {
 			from2++;
 		}
 		assert (from2 == 4);
+		
+		MRVertex.AdjacencyMultipleIterator toItM2 = v2.createToAdjacencyMultipleIterator();
+		int[] toM2 = new int[2];
+		for (int i = 0; i < toM2.length; i++)
+			toM2[i] = 0;
+		for (ArrayList<Integer> tos = toItM2.begin(); !toItM2.done(); tos = toItM2.next()) {
+			for (Integer to : tos)
+				toM2[to]++;
+		}
+		assert (toM2[0] == 1);
+		assert (toM2[1] == 2);
+
+		MRVertex.AdjacencyMultipleIterator fromItM2 = v2.createFromAdjacencyMultipleIterator();
+		int[] fromM2 = new int[7];
+		for (int i = 0; i < fromM2.length; i++)
+			fromM2[i] = 0;
+		for (ArrayList<Integer> froms = fromItM2.begin(); !fromItM2.done(); froms = fromItM2.next()) {
+			for (Integer from : froms)
+				fromM2[from]++;
+		}
+		assert (fromM2[0] == 0);
+		assert (fromM2[1] == 0);
+		assert (fromM2[2] == 0);
+		assert (fromM2[3] == 0);
+		assert (fromM2[4] == 1);
+		assert (fromM2[5] == 2);
+		assert (fromM2[6] == 1);
 		
 		//
 		

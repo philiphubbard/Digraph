@@ -22,6 +22,7 @@
 
 package com.philiphubbard.digraph;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 
 import org.apache.hadoop.io.Text;
@@ -189,6 +190,34 @@ public class MRVertex {
 			computeIsSourceSink();
 	}
 	
+	// Remove an edge that points to the specified vertex from this vertex.
+	
+	public void removeEdgeTo(int to) {
+		removeEdge(to, INDEX_EDGES_TO);
+		
+		// See the comment in addEdgeTo().
+		
+		if (!getIsBranch())
+			computeIsBranch();
+		
+		if (getIsSink())
+			computeIsSourceSink();
+	}
+	
+	// Remove an edge that points from the specified vertex to this vertex.
+	
+	public void removeEdgeFrom(int from) {
+		removeEdge(from, INDEX_EDGES_FROM);
+		
+		// See the comment in addEdgeTo().
+		
+		if (!getIsBranch())
+			computeIsBranch();
+		
+		if (getIsSource())
+			computeIsSourceSink();
+	}
+	
 	public void addEdge(MREdge edge) {
 		if (edge.getTo() == getId())
 			addEdgeFrom(edge.getFrom());
@@ -241,6 +270,69 @@ public class MRVertex {
 	
 	public AdjacencyIterator createToAdjacencyIterator() {
 		return new AdjacencyIterator(edges[INDEX_EDGES_TO]);
+	}
+	
+	// An iterator over vertices adjacent to a MRVertex, returning multiple
+	// instances of a vertex connected with multiple edges.
+	// An iterator is created by the createFromAdjacencyIterator() or
+	// createToAdjacencyIterator() functions, below.
+	// Then iteration can be performed with a loop like the following:
+	// "for (int v = iterator.begin(); !iterator.done(); v = iterator.next())"
+	
+	public class AdjacencyMultipleIterator {
+		
+		public ArrayList<Integer> begin() {
+			current = edges;
+			return matchingEdges();
+		}
+		
+		public ArrayList<Integer> next() {
+			if (current != null)
+				current = current.next;
+			return matchingEdges();
+		}
+		
+		public boolean done() {
+			return (current == null);
+		}
+		
+		private AdjacencyMultipleIterator(EdgeLink edges) {
+			this.edges = edges;
+			current = null;
+		}
+		
+		private ArrayList<Integer> matchingEdges() {
+			if (current == null)
+				return null;
+			ArrayList<Integer> result = new ArrayList<Integer>();
+			EdgeLink next = current;
+			do {
+				current = next;
+				result.add(current.vertex);
+				next = current.next;
+			} while ((next != null) && (next.vertex == current.vertex));
+			return result;			
+		}
+		
+
+		
+		private EdgeLink current;
+		private EdgeLink edges;
+		
+	}
+	
+	// Create an iterator over the edges pointing from other vertices
+	// to this vertex.
+	
+	public AdjacencyMultipleIterator createFromAdjacencyMultipleIterator() {
+		return new AdjacencyMultipleIterator(edges[INDEX_EDGES_FROM]);
+	}
+	
+	// Create an iterator over other the edges pointing to other vertices
+	// from this vertex.
+	
+	public AdjacencyMultipleIterator createToAdjacencyMultipleIterator() {
+		return new AdjacencyMultipleIterator(edges[INDEX_EDGES_TO]);
 	}
 	
 	//
@@ -623,28 +715,53 @@ public class MRVertex {
 	private void addEdge(int vertex, int which) {
 		// HEY!! Enforce that the number of edges does not exceed a count
 		// that can be stored in a short.
-		if (allowEdgeMultiples) {
-			edges[which] = new EdgeLink(vertex, edges[which]);
-		}
-		else {
-			// Keep edges sorted to improve average-case performance.
-			EdgeLink link = edges[which];
-			EdgeLink prev = null;
-			while (link != null) {
-				if (vertex < link.vertex)
-					break;
-				else if (vertex == link.vertex)
-					return;
-				prev = link;
-				link = link.next;
+		
+		// Keep edges sorted by getTo() to improve average-case performance
+		// and to support AdjacencyMultipleIterator.
+
+		EdgeLink link = edges[which];
+		EdgeLink prev = null;
+		while (link != null) {
+			if (vertex < link.vertex) {
+				break;
 			}
-			if (prev == null)
-				edges[which] = new EdgeLink(vertex, edges[which]);
-			else
-				prev.next = new EdgeLink(vertex, link);
-		}		
+			else if (vertex == link.vertex) {
+				if (allowEdgeMultiples)
+					break;
+				else
+					return;
+			}
+			prev = link;
+			link = link.next;
+		}
+		if (prev == null)
+			edges[which] = new EdgeLink(vertex, edges[which]);
+		else
+			prev.next = new EdgeLink(vertex, link);
 	}
 	
+	private void removeEdge(int vertex, int which) {
+		EdgeLink link = edges[which];
+		EdgeLink prev = null;
+		while (link != null) {
+			if (vertex < link.vertex) {
+				break;
+			}
+			else if (vertex == link.vertex) {
+				if (prev != null)
+					prev.next = link.next;
+				else
+					edges[which] = link.next;
+				
+				// TODO: Invalidate iterators.
+				
+				break;
+			}
+			prev = link;
+			link = link.next;
+		}
+	}
+
 	private class EdgeLink {
 		EdgeLink(int vertex, EdgeLink next) {
 			this.vertex = vertex;

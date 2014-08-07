@@ -22,11 +22,6 @@
 
 package com.philiphubbard.digraph;
 
-import com.philiphubbard.digraph.MRVertex;
-import com.philiphubbard.digraph.MREdge;
-
-// HEY!! Change name to MRPartitionBranchVertices? No, since partitioning is optional?
-
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -40,6 +35,9 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+
+import com.philiphubbard.digraph.MRVertex;
+import com.philiphubbard.digraph.MREdge;
 
 // A mapper and reducer for a Hadoop map-reduce algorithm to collect the edges associated
 // with a vertex, turning vertex descriptions with only the edges pointing out from the
@@ -89,7 +87,22 @@ public class MRBuildVertices {
 	public static boolean getIncludeFromEdges() {
 		return includeFromEdges;
 	}
-		
+
+	// "Coverage" is the number of reads that include a part of the sequence.
+	// An odd coverage is preferred, because the error correction scheme
+	// dismisses as errors any candidates whose actual coverage is
+	// less than ceiling(coverage / 2.0).
+	
+	public static final int DISABLE_COVERAGE_ERROR_CORRECTION = -1;
+	
+	public static void setCoverage(int coverage) {
+		MRBuildVertices.coverage = coverage;
+	}
+	
+	public static int getCoverage() {
+		return coverage;
+	}
+	
 	//
 	
 	// The mapper.  An input tuple has a key that is a long, the line in the input file,
@@ -165,6 +178,14 @@ public class MRBuildVertices {
 				for (MREdge edge : edges)
 					vertex.addEdge(edge);
 				
+				if (coverage != DISABLE_COVERAGE_ERROR_CORRECTION) {
+					boolean sufficientlyCoveredFrom = removeUndercoveredEdges(vertex, Which.FROM);
+					boolean sufficientlyCoveredTo = removeUndercoveredEdges(vertex, Which.TO);
+					
+					if (!sufficientlyCoveredFrom && !sufficientlyCoveredTo)
+						return;
+				}
+				
 				vertex.computeIsBranch();
 				vertex.computeIsSourceSink();
 				
@@ -200,11 +221,43 @@ public class MRBuildVertices {
 				multipleOutputs.close();
 		}
 		
+		private enum Which { FROM, TO };
+		
+		private boolean removeUndercoveredEdges(MRVertex vertex, Which which) {
+			int minCoverage = (int) Math.ceil(coverage / 2.0);
+			
+			MRVertex.AdjacencyMultipleIterator it = (which == Which.FROM) ? 
+					vertex.createFromAdjacencyMultipleIterator() :
+						vertex.createToAdjacencyMultipleIterator();
+					
+			int numSufficientlyCovered = 0;
+			ArrayList<Integer> others = it.begin();
+			while (!it.done()) {
+				ArrayList<Integer> nexts = it.next();
+				if (others.size() < minCoverage) {
+					int other = others.get(0);
+					for (int i = 0; i < others.size(); i++) {
+						if (which == Which.FROM)
+							vertex.removeEdgeFrom(other);
+						else
+							vertex.removeEdgeTo(other);
+					}
+				}
+				else {
+					numSufficientlyCovered++;
+				}
+				others = nexts;
+			}
+			
+			return (numSufficientlyCovered > 0);
+		}
+		
 		private MultipleOutputs<IntWritable, BytesWritable> multipleOutputs = null;
 
 	}
 	
     private static boolean partitionBranchesChains = false;
     private static boolean includeFromEdges = false;
+    private static int coverage = DISABLE_COVERAGE_ERROR_CORRECTION;
     
 }
