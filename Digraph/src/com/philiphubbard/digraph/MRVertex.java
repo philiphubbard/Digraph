@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Random;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.BytesWritable;
 
@@ -37,10 +38,13 @@ import org.apache.hadoop.io.BytesWritable;
 
 public class MRVertex {
 	
+	public static final String CONFIG_ALLOW_EDGE_MULTIPLES = "ALLOW_EDGE_MULTIPLES";
+	
 	// Constructor, specifying the identifier for this vertex.
 	
-	public MRVertex(int id) {
+	public MRVertex(int id, Configuration config) {
 		this.id = id;
+		this.config = config;
 		flags = (byte) 0;
 		edges = new EdgeLink[2];
 		edges[INDEX_EDGES_TO] = null;
@@ -49,7 +53,9 @@ public class MRVertex {
 	
 	// Constructor, building the vertex from a Hadoop Writable instance.
 	
-	public MRVertex(BytesWritable writable) {
+	public MRVertex(BytesWritable writable, Configuration config) {
+		this.config = config;
+		
 		byte [] array = writable.getBytes();
 		
 		flags = array[1];
@@ -151,14 +157,6 @@ public class MRVertex {
 	}
 	
 	//
-	
-	public static boolean getAllowEdgeMultiples() {
-		return allowEdgeMultiples;
-	}
-	
-	public static void setAllowEdgeMultiples(boolean doAllow) {
-		allowEdgeMultiples = doAllow;
-	}
 	
 	// Add an edge that points to the specified vertex from this vertex.
 	
@@ -422,16 +420,17 @@ public class MRVertex {
 		return random.nextBoolean() ? to : getId();
 	}
 	
-	public static MRVertex compressChain(MRVertex v1, MRVertex v2, int key) {
+	public static MRVertex compressChain(MRVertex v1, MRVertex v2, int key,
+			Configuration config) {
 		if (key != NO_VERTEX) {
 			if (key == v1.getId()) {
-				if (!v2.compressChain(v1))
+				if (!v2.compressChain(v1, config))
 					return null;
 				else
 					return v2;
 			}
 			else if (key == v2.getId()) {
-				if (!v1.compressChain(v2))
+				if (!v1.compressChain(v2, config))
 					return null;
 				else
 					return v1;
@@ -445,7 +444,7 @@ public class MRVertex {
 	// E.g., if v1->v2, v2->v3, after merging v1 and v2, v3 will still
 	// record that it has an edge from v2. 
 	
-	public boolean compressChain(MRVertex other) {
+	public boolean compressChain(MRVertex other, Configuration config) {
 		Tail tail = getTail();
 		if (tail.id != other.getId())
 			return false;
@@ -455,7 +454,7 @@ public class MRVertex {
 		if (tail.count != otherTail.count)
 			return false;
 		
-		compressChainInternal(other);
+		compressChainInternal(other, config);
 		
 		edges[INDEX_EDGES_TO] = null;
 		edges[INDEX_EDGES_FROM] = null;		
@@ -539,11 +538,13 @@ public class MRVertex {
 	
 	// Text routines are for debugging only.
 	
-	public MRVertex(Text text) {
-		this(text.toString());
+	public MRVertex(Text text, Configuration config) {
+		this(text.toString(), config);
 	}
 	
-	public MRVertex(String s) {
+	public MRVertex(String s, Configuration config) {
+		this.config = config;
+		
 		edges = new EdgeLink[2];
 		edges[INDEX_EDGES_TO] = null;
 		edges[INDEX_EDGES_FROM] = null;
@@ -641,7 +642,7 @@ public class MRVertex {
 		public Tail(int i, int c) { id = i; count = c; }
 	}
 	
-	protected void compressChainInternal(MRVertex other) {
+	protected void compressChainInternal(MRVertex other, Configuration config) {
 	}
 	
 	protected byte[] toWritableInternal() {
@@ -700,6 +701,8 @@ public class MRVertex {
 	private void addEdge(int vertex, int which) {
 		// HEY!! Enforce that the number of edges does not exceed a count
 		// that can be stored in a short.
+		
+		boolean allowEdgeMultiples = config.getBoolean(CONFIG_ALLOW_EDGE_MULTIPLES, false);
 		
 		// Keep edges sorted by getTo() to improve average-case performance
 		// and to support AdjacencyMultipleIterator.
@@ -770,12 +773,11 @@ public class MRVertex {
 	protected static final String SEPARATOR = ";";
 	protected static final String EDGE_SEPARATOR = ",";
 	
-	private static boolean allowEdgeMultiples = true;
-	
 	private static final int INDEX_EDGES_TO = 0;
 	private static final int INDEX_EDGES_FROM = 1;
 
 	private int id;
+	private Configuration config;
 	private byte flags;
 	private EdgeLink[] edges;
 }

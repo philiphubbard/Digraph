@@ -28,6 +28,7 @@ package com.philiphubbard.digraph;
 
 import java.util.ArrayList;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.BytesWritable;
 
@@ -43,9 +44,10 @@ public class MRVertexTest {
 	private static void testBasic() {
 		System.out.println("Testing MRVertex (basic):");
 
-		MRVertex.setAllowEdgeMultiples(false);
+		Configuration config = new Configuration();
+		config.setBoolean(MRVertex.CONFIG_ALLOW_EDGE_MULTIPLES, false);
 		
-		MRVertex v0 = new MRVertex(0);
+		MRVertex v0 = new MRVertex(0, config);
 		assert (v0.getId() == 0);
 		
 		MRVertex.AdjacencyIterator toIt0 = v0.createToAdjacencyIterator();
@@ -62,7 +64,7 @@ public class MRVertexTest {
 		
 		//
 		
-		MRVertex v1 = new MRVertex(1);
+		MRVertex v1 = new MRVertex(1, config);
 		assert (v1.getId() == 1);
 		
 		v1.addEdgeTo(0);
@@ -89,9 +91,9 @@ public class MRVertexTest {
 		
 		//
 		
-		MRVertex.setAllowEdgeMultiples(true);		
+		config.setBoolean(MRVertex.CONFIG_ALLOW_EDGE_MULTIPLES, true);
 		
-		MRVertex v2 = new MRVertex(2);
+		MRVertex v2 = new MRVertex(2, config);
 		assert (v2.getId() == 2);
 		
 		v2.addEdgeTo(0);
@@ -151,7 +153,7 @@ public class MRVertexTest {
 		BytesWritable bw0a = v0.toWritable(MRVertex.EdgeFormat.EDGES_TO);
 		assert (MRVertex.getIsMRVertex(bw0a));
 		assert (!MRVertex.getIsBranch(bw0a));
-		MRVertex v0a = new MRVertex(bw0a);		
+		MRVertex v0a = new MRVertex(bw0a, config);		
 
 		assert (v0a.getId() == 0);
 		
@@ -172,7 +174,7 @@ public class MRVertexTest {
 		BytesWritable bw0b = v0.toWritable(MRVertex.EdgeFormat.EDGES_TO);
 		assert (MRVertex.getIsMRVertex(bw0b));
 		assert (!MRVertex.getIsBranch(bw0b));
-		MRVertex v0b = new MRVertex(bw0b);		
+		MRVertex v0b = new MRVertex(bw0b, config);		
 
 		assert (v0b.getId() == 0);
 		assert (v0.equals(v0b));
@@ -192,12 +194,12 @@ public class MRVertexTest {
 		//
 		
 		Text t0c = v0.toText(MRVertex.EdgeFormat.EDGES_TO);
-		MRVertex v0c = new MRVertex(t0c);
+		MRVertex v0c = new MRVertex(t0c, config);
 		
 		assert (v0.equals(v0c));
 		
 		Text t0d = v0.toText(MRVertex.EdgeFormat.EDGES_TO_FROM);
-		MRVertex v0d = new MRVertex(t0d);
+		MRVertex v0d = new MRVertex(t0d, config);
 		
 		assert (v0.equals(v0d));
 		
@@ -206,7 +208,7 @@ public class MRVertexTest {
 		BytesWritable bw1a = v1.toWritable(MRVertex.EdgeFormat.EDGES_TO);
 		assert (MRVertex.getIsMRVertex(bw1a));
 		assert (MRVertex.getIsBranch(bw1a) == true);
-		MRVertex v1a = new MRVertex(bw1a);
+		MRVertex v1a = new MRVertex(bw1a, config);
 
 		MRVertex.AdjacencyIterator toIt1a = v1a.createToAdjacencyIterator();
 		int to1a = 0;
@@ -228,7 +230,7 @@ public class MRVertexTest {
 		BytesWritable bw1b = v1.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsMRVertex(bw1b));
 		assert (MRVertex.getIsBranch(bw1b) == true);
-		MRVertex v1b = new MRVertex(bw1b);
+		MRVertex v1b = new MRVertex(bw1b, config);
 
 		MRVertex.AdjacencyIterator toIt1b = v1b.createToAdjacencyIterator();
 		int to1b = 0;
@@ -252,18 +254,18 @@ public class MRVertexTest {
 		//
 		
 		Text t1c = v1.toText(MRVertex.EdgeFormat.EDGES_TO);
-		MRVertex v1c = new MRVertex(t1c);
+		MRVertex v1c = new MRVertex(t1c, config);
 		
 		assert (v1a.equals(v1c));
 		
 		Text t1d = v1.toText(MRVertex.EdgeFormat.EDGES_TO_FROM);
-		MRVertex v1d = new MRVertex(t1d);
+		MRVertex v1d = new MRVertex(t1d, config);
 		
 		assert (v1b.equals(v1d));
 		
 		//
 		
-		MRVertex v3 = new MRVertex(3);
+		MRVertex v3 = new MRVertex(3, config);
 		v3.addEdgeTo(1);
 		
 		BytesWritable bw3a = v3.toWritable(MRVertex.EdgeFormat.EDGES_TO);
@@ -272,7 +274,7 @@ public class MRVertexTest {
 		BytesWritable bw3b = v3.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsBranch(bw3b) == false);
 		
-		MRVertex v4 = new MRVertex(4);
+		MRVertex v4 = new MRVertex(4, config);
 		v4.addEdgeTo(2);
 		v4.addEdgeFrom(7);
 		
@@ -282,7 +284,7 @@ public class MRVertexTest {
 		BytesWritable bw4b = v4.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsBranch(bw4b) == false);
 		
-		MRVertex v5 = new MRVertex(5);
+		MRVertex v5 = new MRVertex(5, config);
 		v5.addEdgeTo(2);
 		v5.addEdgeTo(2);
 		
@@ -292,7 +294,7 @@ public class MRVertexTest {
 		BytesWritable bw5b = v5.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsBranch(bw5b) == false);
 		
-		MRVertex v6 = new MRVertex(6);
+		MRVertex v6 = new MRVertex(6, config);
 		v6.addEdgeTo(2);
 		v6.addEdgeFrom(7);
 		v6.addEdgeFrom(7);
@@ -303,7 +305,7 @@ public class MRVertexTest {
 		BytesWritable bw6b = v6.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsBranch(bw6b) == false);
 		
-		MRVertex v8 = new MRVertex(8);		
+		MRVertex v8 = new MRVertex(8, config);		
 		v8.addEdgeFrom(9);
 
 		BytesWritable bw8a = v8.toWritable(MRVertex.EdgeFormat.EDGES_TO);
@@ -312,7 +314,7 @@ public class MRVertexTest {
 		BytesWritable bw8b = v8.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsBranch(bw8b) == false);
 		
-		MRVertex v9 = new MRVertex(9);
+		MRVertex v9 = new MRVertex(9, config);
 		v9.addEdgeTo(10);
 		v9.addEdgeTo(10);
 		v9.addEdgeTo(11);
@@ -323,7 +325,7 @@ public class MRVertexTest {
 		BytesWritable bw9b = v9.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsBranch(bw9b) == true);
 
-		MRVertex v10 = new MRVertex(10);
+		MRVertex v10 = new MRVertex(10, config);
 		v10.addEdgeFrom(9);
 		v10.addEdgeFrom(9);
 		v10.addEdgeTo(11);
@@ -335,7 +337,7 @@ public class MRVertexTest {
 		BytesWritable bw10b = v10.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		assert (MRVertex.getIsBranch(bw10b) == true);
 
-		MRVertex v11 = new MRVertex(11);
+		MRVertex v11 = new MRVertex(11, config);
 		v11.addEdgeFrom(10);
 		v11.addEdgeFrom(12);
 		v11.addEdgeTo(13);
@@ -349,7 +351,7 @@ public class MRVertexTest {
 		
 		//
 		
-		MRVertex v20 = new MRVertex(20);
+		MRVertex v20 = new MRVertex(20, config);
 		v20.addEdgeTo(21);
 		
 		MRVertex.AdjacencyIterator toIt20 = v20.createToAdjacencyIterator();
@@ -360,7 +362,7 @@ public class MRVertexTest {
 		}
 		assert (to20 == 1);		
 		
-		MRVertex v21 = new MRVertex(21);
+		MRVertex v21 = new MRVertex(21, config);
 		v21.addEdgeTo(22);
 		
 		MRVertex.AdjacencyIterator toIt21 = v21.createToAdjacencyIterator();
@@ -371,7 +373,7 @@ public class MRVertexTest {
 		}
 		assert (to21 == 1);		
 		
-		MRVertex v22 = new MRVertex(22);
+		MRVertex v22 = new MRVertex(22, config);
 		v22.addEdgeTo(23);
 		
 		MRVertex.AdjacencyIterator toIt22 = v22.createToAdjacencyIterator();
@@ -382,7 +384,7 @@ public class MRVertexTest {
 		}
 		assert (to22 == 1);		
 		
-		MRVertex v23 = new MRVertex(23);
+		MRVertex v23 = new MRVertex(23, config);
 		v23.addEdgeTo(24);
 		
 		MRVertex.AdjacencyIterator toIt23 = v23.createToAdjacencyIterator();
@@ -393,11 +395,11 @@ public class MRVertexTest {
 		}
 		assert (to23 == 1);		
 		
-		MRVertex v24 = new MRVertex(24);
+		MRVertex v24 = new MRVertex(24, config);
 		MRVertex.AdjacencyIterator toIt24 = v24.createToAdjacencyIterator();
 		assert (toIt24.done());
 		
-		MRVertex.compressChain(v20, v21, 21);
+		MRVertex.compressChain(v20, v21, 21, config);
 
 		MRVertex.AdjacencyIterator toIt20a = v20.createToAdjacencyIterator();
 		int to20a = 0;
@@ -407,7 +409,7 @@ public class MRVertexTest {
 		}
 		assert (to20a == 1);		
 
-		MRVertex.compressChain(v22, v23, 23);
+		MRVertex.compressChain(v22, v23, 23, config);
 
 		MRVertex.AdjacencyIterator toIt22a = v22.createToAdjacencyIterator();
 		int to22a = 0;
@@ -417,7 +419,7 @@ public class MRVertexTest {
 		}
 		assert (to22a == 1);		
 
-		MRVertex.compressChain(v20, v22, 22);
+		MRVertex.compressChain(v20, v22, 22, config);
 
 		MRVertex.AdjacencyIterator toIt20b = v20.createToAdjacencyIterator();
 		int to20b = 0;
@@ -433,20 +435,20 @@ public class MRVertexTest {
 	//
 
 	private static class MRVertexSubclass extends MRVertex {
-		public MRVertexSubclass(int id) {
-			super(id);
+		public MRVertexSubclass(int id, Configuration config) {
+			super(id, config);
 			extra = (byte) (2 * id + 1);
 		}
 		
-		public MRVertexSubclass(BytesWritable writable) {
-			super(writable);
+		public MRVertexSubclass(BytesWritable writable, Configuration config) {
+			super(writable, config);
 		}
 		
 		public int getExtra() {
 			return extra;
 		}
 		
-		protected void compressChainInternal(MRVertex other) {
+		protected void compressChainInternal(MRVertex other, Configuration config) {
 			if (other instanceof MRVertexSubclass) {
 				MRVertexSubclass otherSubclass = (MRVertexSubclass) other;
 				extra += otherSubclass.extra;
@@ -472,68 +474,71 @@ public class MRVertexTest {
 	private static void testSubclass() {
 		System.out.println("Testing MRVertex (subclassing):");
 		
-		MRVertexSubclass v0 = new MRVertexSubclass(0);
+		Configuration config = new Configuration();
+		config.setBoolean(MRVertex.CONFIG_ALLOW_EDGE_MULTIPLES, true);
+
+		MRVertexSubclass v0 = new MRVertexSubclass(0, config);
 		assert (v0.getExtra() == 1);
 		
 		BytesWritable bw0a = v0.toWritable(MRVertex.EdgeFormat.EDGES_TO);
-		MRVertexSubclass v0a = new MRVertexSubclass(bw0a);
+		MRVertexSubclass v0a = new MRVertexSubclass(bw0a, config);
 		assert (v0a.getExtra() == 1);
 		
 		BytesWritable bw0b = v0.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
-		MRVertexSubclass v0b = new MRVertexSubclass(bw0b);
+		MRVertexSubclass v0b = new MRVertexSubclass(bw0b, config);
 		assert (v0b.getExtra() == 1);
 
-		MRVertexSubclass v1 = new MRVertexSubclass(1);
+		MRVertexSubclass v1 = new MRVertexSubclass(1, config);
 		assert (v1.getExtra() == 3);
 		
 		v1.addEdgeTo(11);
 		
 		BytesWritable bw1a = v1.toWritable(MRVertex.EdgeFormat.EDGES_TO);
-		MRVertexSubclass v1a = new MRVertexSubclass(bw1a);
+		MRVertexSubclass v1a = new MRVertexSubclass(bw1a, config);
 		assert (v1a.getExtra() == 3);
 		
 		BytesWritable bw1b = v1.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
-		MRVertexSubclass v1b = new MRVertexSubclass(bw1b);
+		MRVertexSubclass v1b = new MRVertexSubclass(bw1b, config);
 		assert (v1b.getExtra() == 3);
 
-		MRVertexSubclass v2 = new MRVertexSubclass(2);
+		MRVertexSubclass v2 = new MRVertexSubclass(2, config);
 		assert (v2.getExtra() == 5);
 		
 		v2.addEdgeTo(11);
 		v2.addEdgeFrom(12);
 		
 		BytesWritable bw2a = v2.toWritable(MRVertex.EdgeFormat.EDGES_TO);
-		MRVertexSubclass v2a = new MRVertexSubclass(bw2a);
+		MRVertexSubclass v2a = new MRVertexSubclass(bw2a, config);
 		assert (v2a.getExtra() == 5);
 		
 		BytesWritable bw2b = v2.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
-		MRVertexSubclass v2b = new MRVertexSubclass(bw2b);
+		MRVertexSubclass v2b = new MRVertexSubclass(bw2b, config);
 		assert (v2b.getExtra() == 5);
 
-		MRVertexSubclass v3 = new MRVertexSubclass(3);
+		MRVertexSubclass v3 = new MRVertexSubclass(3, config);
 		assert (v3.getExtra() == 7);
 		
 		v3.addEdgeFrom(13);
 		
 		BytesWritable bw3a = v3.toWritable(MRVertex.EdgeFormat.EDGES_TO);
-		MRVertexSubclass v3a = new MRVertexSubclass(bw3a);
+		MRVertexSubclass v3a = new MRVertexSubclass(bw3a, config);
 		assert (v3a.getExtra() == 7);
 		
 		BytesWritable bw3b = v3.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
-		MRVertexSubclass v3b = new MRVertexSubclass(bw3b);
+		MRVertexSubclass v3b = new MRVertexSubclass(bw3b, config);
 		assert (v3b.getExtra() == 7);
 		
 		//
 		
-		MRVertexSubclass v4 = new MRVertexSubclass(4);
+		MRVertexSubclass v4 = new MRVertexSubclass(4, config);
 		v4.addEdgeTo(5);
 		assert (v4.getExtra() == 9);
 		
-		MRVertexSubclass v5 = new MRVertexSubclass(5);
+		MRVertexSubclass v5 = new MRVertexSubclass(5, config);
 		v5.addEdgeTo(6);
 		assert (v5.getExtra() == 11);
 		
-		v4.compressChain(v5);
+		v4.compressChain(v5, config);
 		assert (v4.getExtra() == 20);
 
 		System.out.println("MRVertex (subclassing) passed.");

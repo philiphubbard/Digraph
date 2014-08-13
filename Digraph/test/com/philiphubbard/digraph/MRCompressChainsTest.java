@@ -84,7 +84,7 @@ public class MRCompressChainsTest {
 		
 		ArrayList<MRVertex> vertices = new ArrayList<MRVertex>();
 		for (int i = 0; i < 60; i++) {
-			MRVertex vertex = new MRVertex(i);
+			MRVertex vertex = new MRVertex(i, conf);
 			vertices.add(vertex);
 			if (i % 20 != 19)
 				vertex.addEdgeTo(i+1);
@@ -116,7 +116,7 @@ public class MRCompressChainsTest {
 			    IntWritable key = new IntWritable();
 			    BytesWritable value = new BytesWritable();
 			    while (reader.next(key, value))
-			    	vertices.add(new MRVertex(value));
+			    	vertices.add(new MRVertex(value, conf));
 			    reader.close();
 			}
 		}

@@ -51,8 +51,8 @@ public class MRBuildVerticesTest {
 		Job job = Job.getInstance(conf);
 		job.setJobName("mrbuildverticestest");
 		
-		MRBuildVertices.setupJob(job, new Path(testInput), new Path(testOutput));	
-		MRBuildVertices.setPartitionBranchesChains(true);
+		MRBuildVertices.setupJob(job, new Path(testInput), new Path(testOutput));
+		conf.setBoolean(MRBuildVertices.CONFIG_PARTITION_BRANCHES_CHAINS, true);
 		
 		if (!job.waitForCompletion(true))
 			System.exit(1);
@@ -71,35 +71,35 @@ public class MRBuildVerticesTest {
 		
 		ArrayList<MRVertex> vertices = new ArrayList<MRVertex>();
 		
-		MRVertex v0 = new MRVertex(0);
+		MRVertex v0 = new MRVertex(0, conf);
 		v0.addEdgeTo(2);
 		vertices.add(v0);
 		
-		MRVertex v1 = new MRVertex(1);
+		MRVertex v1 = new MRVertex(1, conf);
 		v1.addEdgeTo(2);
 		vertices.add(v1);
 		
-		MRVertex v2 = new MRVertex(2);
+		MRVertex v2 = new MRVertex(2, conf);
 		v2.addEdgeTo(3);
 		vertices.add(v2);
 		
-		MRVertex v3 = new MRVertex(3);
+		MRVertex v3 = new MRVertex(3, conf);
 		v3.addEdgeTo(4);
 		vertices.add(v3);
 		
-		MRVertex v4 = new MRVertex(4);
+		MRVertex v4 = new MRVertex(4, conf);
 		v4.addEdgeTo(5);
 		v4.addEdgeTo(6);
 		vertices.add(v4);
 		
-		MRVertex v5 = new MRVertex(5);
+		MRVertex v5 = new MRVertex(5, conf);
 		vertices.add(v5);
 		
-		MRVertex v6 = new MRVertex(6);
+		MRVertex v6 = new MRVertex(6, conf);
 		v6.addEdgeTo(7);
 		vertices.add(v6);
 		
-		MRVertex v7 = new MRVertex(7);
+		MRVertex v7 = new MRVertex(7, conf);
 		vertices.add(v7);
 		
 		FSDataOutputStream out = fileSystem.create(path);
@@ -152,7 +152,7 @@ public class MRBuildVerticesTest {
 		    IntWritable key = new IntWritable();
 		    BytesWritable value = new BytesWritable();
 		    while (reader.next(key, value))
-		    	vertices.add(new MRVertex(value));
+		    	vertices.add(new MRVertex(value, conf));
 		    reader.close();
 		}
 	}

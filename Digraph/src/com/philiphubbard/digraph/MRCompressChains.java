@@ -5,6 +5,7 @@ import com.philiphubbard.digraph.MRVertex;
 import java.io.IOException;
 import java.util.Random;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.fs.FileSystem;
@@ -95,8 +96,8 @@ public class MRCompressChains {
 	public static class Mapper 
 	extends org.apache.hadoop.mapreduce.Mapper<IntWritable, BytesWritable, IntWritable, BytesWritable> {
 
-		protected MRVertex createMRVertex(BytesWritable value) {
-			return new MRVertex(value);
+		protected MRVertex createMRVertex(BytesWritable value, Configuration config) {
+			return new MRVertex(value, config);
 		}
 		
 		protected void map(IntWritable key, BytesWritable value, Context context) 
@@ -104,7 +105,7 @@ public class MRCompressChains {
 			if (MRVertex.getIsBranch(value))
 				throw new IOException("MRCompressChains.Mapper.map(): input vertex is a branch");
 
-			MRVertex vertex = createMRVertex(value);
+			MRVertex vertex = createMRVertex(value, context.getConfiguration());
 			
 			// HEY!!
 			System.out.println("* mapper output vertex " + vertex.getId() + 
@@ -115,15 +116,15 @@ public class MRCompressChains {
 			context.write(keyOut, vertex.toWritable(MRVertex.EdgeFormat.EDGES_TO));
 		}
 		
-		private static Random random = new Random();
+		private Random random = new Random();
 	}
 
 	// HEY!! What should the key be?
 	public static class Reducer 
 	extends org.apache.hadoop.mapreduce.Reducer<IntWritable, BytesWritable, IntWritable, BytesWritable> {
 
-		protected MRVertex createMRVertex(BytesWritable value) {
-			return new MRVertex(value);
+		protected MRVertex createMRVertex(BytesWritable value, Configuration config) {
+			return new MRVertex(value, config);
 		}
 		
 		protected void reduce(IntWritable key, Iterable<BytesWritable> values, Context context) 
@@ -131,15 +132,17 @@ public class MRCompressChains {
 			MRVertex vertex1 = null;
 			MRVertex vertex2 = null;
 			
+			Configuration config = context.getConfiguration();
+			
 			for (BytesWritable value : values) {
 				if (MRVertex.getIsBranch(value))
 					throw new IOException("MRCompressChains.Reducer.reduce(): input vertex is a branch");
 
 				// HEY!! Error checking
 				if (vertex1 == null)
-					vertex1 = createMRVertex(value);
+					vertex1 = createMRVertex(value, config);
 				else
-					vertex2 = createMRVertex(value);
+					vertex2 = createMRVertex(value, config);
 			}
 			
 			if (vertex1 == null)
@@ -158,7 +161,8 @@ public class MRCompressChains {
 				System.out.println("** compressing " + vertex2.toDisplayString() + " into " + vertex1.toDisplayString() 
 						+ " key " + compressionKey + " **");
 				
-				MRVertex vertexCompressed = MRVertex.compressChain(vertex1, vertex2, compressionKey);
+				MRVertex vertexCompressed = 
+						MRVertex.compressChain(vertex1, vertex2, compressionKey, config);
 				
 				if (vertexCompressed != null) {
 					IntWritable keyOut = new IntWritable(vertexCompressed.getId());

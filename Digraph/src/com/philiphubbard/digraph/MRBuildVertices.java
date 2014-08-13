@@ -25,6 +25,7 @@ package com.philiphubbard.digraph;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -72,36 +73,17 @@ public class MRBuildVertices {
 	
 	// Optional setup.
 	
-	public static void setPartitionBranchesChains(boolean doPartition) {
-		partitionBranchesChains = doPartition;
-	}
-	
-	public static boolean getPartitionBranchesChains() {
-		return partitionBranchesChains;
-	}
-	
-	public static void setIncludeFromEdges(boolean doInclude) {
-		includeFromEdges = doInclude;
-	}
-	
-	public static boolean getIncludeFromEdges() {
-		return includeFromEdges;
-	}
+	public static final String CONFIG_PARTITION_BRANCHES_CHAINS = "CONFIG_PARTITION_BRANCHES_CHAINS";
+
+	public static final String CONFIG_INCLUDE_FROM_EDGES = "CONFIG_INCLUDE_FROM_EDGES";
 
 	// "Coverage" is the number of reads that include a part of the sequence.
 	// An odd coverage is preferred, because the error correction scheme
 	// dismisses as errors any candidates whose actual coverage is
 	// less than ceiling(coverage / 2.0).
 	
-	public static final int DISABLE_COVERAGE_ERROR_CORRECTION = -1;
-	
-	public static void setCoverage(int coverage) {
-		MRBuildVertices.coverage = coverage;
-	}
-	
-	public static int getCoverage() {
-		return coverage;
-	}
+	public static final String CONFIG_COVERAGE = "CONFIG_COVERAGE";
+	public static final int DISABLE_COVERAGE = -1;
 	
 	//
 	
@@ -119,9 +101,9 @@ public class MRBuildVertices {
 		// function to take a Text value of a different format, as long as it is convertable
 		// to one or more MRVertex instances.
 		
-		protected ArrayList<MRVertex> verticesFromInputValue(Text value) {
+		protected ArrayList<MRVertex> verticesFromInputValue(Text value, Configuration config) {
 			ArrayList<MRVertex> result = new ArrayList<MRVertex>();
-			result.add(new MRVertex(value));
+			result.add(new MRVertex(value, config));
 			return result;
 		}
 				
@@ -129,7 +111,7 @@ public class MRBuildVertices {
 		
 		protected void map(LongWritable key, Text value, Context context) 
 				throws IOException, InterruptedException {
-			ArrayList<MRVertex> vertices = verticesFromInputValue(value);
+			ArrayList<MRVertex> vertices = verticesFromInputValue(value, context.getConfiguration());
 			for (MRVertex vertex : vertices) {
 				context.write(new IntWritable(vertex.getId()), 
 							  vertex.toWritable(MRVertex.EdgeFormat.EDGES_TO));
@@ -152,8 +134,8 @@ public class MRBuildVertices {
 	public static class Reducer 
 	extends org.apache.hadoop.mapreduce.Reducer<IntWritable, BytesWritable, IntWritable, BytesWritable> {
 		
-		protected MRVertex createMRVertex(BytesWritable value) {
-			return new MRVertex(value);
+		protected MRVertex createMRVertex(BytesWritable value, Configuration config) {
+			return new MRVertex(value, config);
 		}
 		
 		protected void reduce(IntWritable key, Iterable<BytesWritable> values, Context context) 
@@ -162,12 +144,18 @@ public class MRBuildVertices {
 			ArrayList<MREdge> edges = new ArrayList<MREdge>();
 			MRVertex vertex = null;
 			
+			Configuration config = context.getConfiguration();
+			int coverage = config.getInt(CONFIG_COVERAGE, DISABLE_COVERAGE);
+			boolean includeFromEdges = config.getBoolean(CONFIG_INCLUDE_FROM_EDGES, false);
+			boolean partition = config.getBoolean(CONFIG_PARTITION_BRANCHES_CHAINS, true);
+
 			for (BytesWritable value : values) {
+				
 				if (MRVertex.getIsMRVertex(value)) {
 					if (vertex == null) 
-						vertex = createMRVertex(value);
+						vertex = createMRVertex(value, config);
 					else 
-						vertex.merge(createMRVertex(value));
+						vertex.merge(createMRVertex(value, config));
 				}
 				else if (MREdge.getIsMREdge(value)) {
 					edges.add(new MREdge(value));
@@ -178,9 +166,11 @@ public class MRBuildVertices {
 				for (MREdge edge : edges)
 					vertex.addEdge(edge);
 				
-				if (coverage != DISABLE_COVERAGE_ERROR_CORRECTION) {
-					boolean sufficientlyCoveredFrom = removeUndercoveredEdges(vertex, Which.FROM);
-					boolean sufficientlyCoveredTo = removeUndercoveredEdges(vertex, Which.TO);
+				if (coverage != DISABLE_COVERAGE) {
+					boolean sufficientlyCoveredFrom = 
+							removeUndercoveredEdges(vertex, Which.FROM, coverage);
+					boolean sufficientlyCoveredTo = 
+							removeUndercoveredEdges(vertex, Which.TO, coverage);
 					
 					if (!sufficientlyCoveredFrom && !sufficientlyCoveredTo)
 						return;
@@ -189,14 +179,11 @@ public class MRBuildVertices {
 				vertex.computeIsBranch();
 				vertex.computeIsSourceSink();
 				
-				// HEY!! 
-				System.out.println("** " + vertex.toDisplayString() + " **");
-				
 				MRVertex.EdgeFormat format = includeFromEdges ? MRVertex.EdgeFormat.EDGES_TO_FROM : 
 					MRVertex.EdgeFormat.EDGES_TO;
 				BytesWritable value = vertex.toWritable(format);
 				
-				if (partitionBranchesChains) {
+				if (partition) {
 					if (MRVertex.getIsBranch(value))
 						multipleOutputs.write(key, value, "branch/part");
 					else
@@ -211,19 +198,19 @@ public class MRBuildVertices {
 		
 		protected void setup(Context context)
 	            throws IOException, InterruptedException {
-			if (partitionBranchesChains)
+			if (context.getConfiguration().getBoolean(CONFIG_PARTITION_BRANCHES_CHAINS, true))
 				multipleOutputs = new MultipleOutputs<IntWritable, BytesWritable>(context);
 		}
 
 		protected void cleanup(Context context)
 	            throws IOException, InterruptedException {
-			if (partitionBranchesChains)
+			if (context.getConfiguration().getBoolean(CONFIG_PARTITION_BRANCHES_CHAINS, true))
 				multipleOutputs.close();
 		}
 		
 		private enum Which { FROM, TO };
 		
-		private boolean removeUndercoveredEdges(MRVertex vertex, Which which) {
+		private boolean removeUndercoveredEdges(MRVertex vertex, Which which, int coverage) {
 			int minCoverage = (int) Math.ceil(coverage / 2.0);
 			
 			MRVertex.AdjacencyMultipleIterator it = (which == Which.FROM) ? 
@@ -255,9 +242,5 @@ public class MRBuildVertices {
 		private MultipleOutputs<IntWritable, BytesWritable> multipleOutputs = null;
 
 	}
-	
-    private static boolean partitionBranchesChains = false;
-    private static boolean includeFromEdges = false;
-    private static int coverage = DISABLE_COVERAGE_ERROR_CORRECTION;
     
 }
