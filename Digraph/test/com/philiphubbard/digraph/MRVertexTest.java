@@ -26,6 +26,7 @@
 
 package com.philiphubbard.digraph;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
 import org.apache.hadoop.conf.Configuration;
@@ -37,11 +38,17 @@ import com.philiphubbard.digraph.MRVertex;
 public class MRVertexTest {
 
 	public static void test() {
-		testBasic();
-		testSubclass();
+		try {
+			testBasic();
+			testSubclass();
+		}
+		catch (IOException exception) {
+			System.out.println(exception.getMessage());
+			assert (false);
+		}
 	}
 	
-	private static void testBasic() {
+	private static void testBasic() throws IOException {
 		System.out.println("Testing MRVertex (basic):");
 
 		Configuration config = new Configuration();
@@ -427,7 +434,50 @@ public class MRVertexTest {
 			assert (to == 24);
 			to20b++;
 		}
-		assert (to20b == 1);		
+		assert (to20b == 1);
+		
+		//
+		
+		MRVertex v30 = new MRVertex(30, config);
+		
+		v30.addEdgeTo(31);
+		v30.addEdgeTo(32);
+		v30.addEdgeTo(33);
+		v30.addEdgeTo(34);
+		v30.addEdgeTo(35);
+		
+		MRVertex.AdjacencyIterator toIt30a = v30.createToAdjacencyIterator();
+		MRVertex.AdjacencyIterator toIt30b = v30.createToAdjacencyIterator();
+		MRVertex.AdjacencyIterator toIt30c = v30.createToAdjacencyIterator();
+		
+		toIt30a.begin();
+		
+		toIt30b.begin();
+		toIt30b.next();
+		
+		toIt30c.begin();
+		toIt30c.next();
+		toIt30c.next();
+		
+		v30.removeEdgeTo(32);
+		
+		int to30a = 0;
+		for (int to; !toIt30a.done(); to = toIt30a.next()) {
+			to30a++;
+		}
+		assert (to30a == 4);
+		
+		int to30b = 0;
+		for (int to; !toIt30b.done(); to = toIt30b.next()) {
+			to30b++;
+		}
+		assert (to30b == 3);
+
+		int to30c = 0;
+		for (int to; !toIt30c.done(); to = toIt30c.next()) {
+			to30c++;
+		}
+		assert (to30c == 3);
 
 		System.out.println("MRVertex (basic) passed.");
 	}
@@ -471,7 +521,7 @@ public class MRVertexTest {
 	
 	//
 	
-	private static void testSubclass() {
+	private static void testSubclass() throws IOException {
 		System.out.println("Testing MRVertex (subclassing):");
 		
 		Configuration config = new Configuration();

@@ -22,8 +22,11 @@
 
 package com.philiphubbard.digraph;
 
+import java.lang.ref.WeakReference;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Random;
 
 import org.apache.hadoop.conf.Configuration;
@@ -48,7 +51,8 @@ public class MRVertex {
 		flags = (byte) 0;
 		edges = new EdgeLink[2];
 		edges[INDEX_EDGES_TO] = null;
-		edges[INDEX_EDGES_FROM] = null;				
+		edges[INDEX_EDGES_FROM] = null;
+		iterators = new ArrayList<WeakReference<EdgeHolder>>();
 	}
 	
 	// Constructor, building the vertex from a Hadoop Writable instance.
@@ -86,7 +90,9 @@ public class MRVertex {
 		i += 2;
 		if (numBytesInternal != 0)
 			fromWritableInternal(array, i, numBytesInternal);
-	}
+
+		iterators = new ArrayList<WeakReference<EdgeHolder>>();
+}
 	
 	// The vertex's identifier.
 	
@@ -108,7 +114,7 @@ public class MRVertex {
 	
 	public enum WritableFormat { VALUE, VALUE_LINE, KEY_VALUE_LINE }
 	
-	public BytesWritable toWritable(EdgeFormat edgeFormat) {
+	public BytesWritable toWritable(EdgeFormat edgeFormat) throws IOException {
 		short numEdgesTo = 0;
 		for (EdgeLink link = edges[INDEX_EDGES_TO]; link != null; link = link.next)
 			numEdgesTo++;
@@ -144,7 +150,9 @@ public class MRVertex {
 		}
 			
 		if (internal != null) {
-			// HEY!! Exception if internal.length exceeds short.
+			if (internal.length > Short.MAX_VALUE)
+				throw new IOException("MRVertex " + getId() + " toWritableInternal() is too long");
+
 			i = putShort((short) internal.length, result, i);
 			for (byte b : internal)
 				result[i++] = b;
@@ -230,7 +238,7 @@ public class MRVertex {
 	// Then iteration can be performed with a loop like the following:
 	// "for (int v = iterator.begin(); !iterator.done(); v = iterator.next())"
 	
-	public class AdjacencyIterator {
+	public class AdjacencyIterator extends EdgeHolder {
 		
 		public int begin() {
 			current = edges;
@@ -252,7 +260,6 @@ public class MRVertex {
 			current = null;
 		}
 		
-		private EdgeLink current;
 		private EdgeLink edges;
 		
 	}
@@ -261,14 +268,30 @@ public class MRVertex {
 	// to this vertex.
 	
 	public AdjacencyIterator createFromAdjacencyIterator() {
-		return new AdjacencyIterator(edges[INDEX_EDGES_FROM]);
+		AdjacencyIterator it = new AdjacencyIterator(edges[INDEX_EDGES_FROM]);
+		
+		// Since there is no automatic removal of weak references to iterators
+		// that have become null, now is a reasonable time to try explicit removal.
+
+		cleanupIterators();
+		
+		iterators.add(new WeakReference<EdgeHolder>(it));
+		return it;
 	}
 	
 	// Create an iterator over other the edges pointing to other vertices
 	// from this vertex.
 	
 	public AdjacencyIterator createToAdjacencyIterator() {
-		return new AdjacencyIterator(edges[INDEX_EDGES_TO]);
+		AdjacencyIterator it = new AdjacencyIterator(edges[INDEX_EDGES_TO]);
+		
+		// Since there is no automatic removal of weak references to iterators
+		// that have become null, now is a reasonable time to try explicit removal.
+
+		cleanupIterators();
+		
+		iterators.add(new WeakReference<EdgeHolder>(it));
+		return it;
 	}
 	
 	// An iterator over vertices adjacent to a MRVertex, returning multiple
@@ -278,7 +301,7 @@ public class MRVertex {
 	// Then iteration can be performed with a loop like the following:
 	// "for (int v = iterator.begin(); !iterator.done(); v = iterator.next())"
 	
-	public class AdjacencyMultipleIterator {
+	public class AdjacencyMultipleIterator extends EdgeHolder {
 		
 		public ArrayList<Integer> begin() {
 			current = edges;
@@ -313,7 +336,6 @@ public class MRVertex {
 			return result;			
 		}
 		
-		private EdgeLink current;
 		private EdgeLink edges;
 		
 	}
@@ -322,14 +344,30 @@ public class MRVertex {
 	// to this vertex.
 	
 	public AdjacencyMultipleIterator createFromAdjacencyMultipleIterator() {
-		return new AdjacencyMultipleIterator(edges[INDEX_EDGES_FROM]);
+		AdjacencyMultipleIterator it = new AdjacencyMultipleIterator(edges[INDEX_EDGES_FROM]);
+		
+		// Since there is no automatic removal of weak references to iterators
+		// that have become null, now is a reasonable time to try explicit removal.
+
+		cleanupIterators();
+		
+		iterators.add(new WeakReference<EdgeHolder>(it));
+		return it;
 	}
 	
 	// Create an iterator over other the edges pointing to other vertices
 	// from this vertex.
 	
 	public AdjacencyMultipleIterator createToAdjacencyMultipleIterator() {
-		return new AdjacencyMultipleIterator(edges[INDEX_EDGES_TO]);
+		AdjacencyMultipleIterator it = new AdjacencyMultipleIterator(edges[INDEX_EDGES_TO]);
+		
+		// Since there is no automatic removal of weak references to iterators
+		// that have become null, now is a reasonable time to try explicit removal.
+
+		cleanupIterators();
+		
+		iterators.add(new WeakReference<EdgeHolder>(it));
+		return it;
 	}
 	
 	//
@@ -576,6 +614,8 @@ public class MRVertex {
 		
 		if (!tokens[iToken].isEmpty())
 			fromTextInternal(tokens[iToken]);
+
+		iterators = new ArrayList<WeakReference<EdgeHolder>>();
 	}
 	
 	public Text toText(EdgeFormat edgeFormat) {
@@ -698,16 +738,17 @@ public class MRVertex {
 		return result;
 	}
 	
-	private void addEdge(int vertex, int which) {
-		// HEY!! Enforce that the number of edges does not exceed a count
-		// that can be stored in a short.
-		
+	private void addEdge(int vertex, int which) throws IllegalArgumentException {
 		boolean allowEdgeMultiples = config.getBoolean(CONFIG_ALLOW_EDGE_MULTIPLES, false);
 		
 		// Keep edges sorted by getTo() to improve average-case performance
 		// and to support AdjacencyMultipleIterator.
 
 		EdgeLink link = edges[which];
+		
+		if (edges.length == Short.MAX_VALUE)
+			throw new IllegalArgumentException("MRVertex " + getId() + " has too many edges");
+		
 		EdgeLink prev = null;
 		while (link != null) {
 			if (vertex < link.vertex) {
@@ -736,12 +777,17 @@ public class MRVertex {
 				break;
 			}
 			else if (vertex == link.vertex) {
+				// Update iterators that might be referring to the EdgeLink
+				// that is about to be removed.
+				
+				cleanupIterators();
+				for (WeakReference<EdgeHolder> ref : iterators)
+					ref.get().update(link);
+				
 				if (prev != null)
 					prev.next = link.next;
 				else
 					edges[which] = link.next;
-				
-				// TODO: Invalidate iterators.
 				
 				break;
 			}
@@ -749,17 +795,43 @@ public class MRVertex {
 			link = link.next;
 		}
 	}
-
+	
+	// Since there is no automatic removal of weak references to iterators
+	// that have become null, this routine forces explicit removal.
+	
+	private void cleanupIterators() {
+		Iterator<WeakReference<EdgeHolder>> it = iterators.iterator();
+		while (it.hasNext()) {
+			WeakReference<EdgeHolder> ref = it.next();
+			if (ref.get() == null)
+				it.remove();
+		}
+	}
+	
 	private class EdgeLink {
 		EdgeLink(int vertex, EdgeLink next) {
 			this.vertex = vertex;
 			this.next = next;
 		}
+		
 		int vertex;
 		EdgeLink next;
 	}
 	
-	// HEY!! Private or protected?
+	// A base class for classes that hold references to edges, like iterators.
+	// Since the referred edge may be removed, this class can be updated to
+	// advance past the removed edge.  This base class makes it simpler to
+	// maintain a list of weak references to every instance that could need
+	// to be updated.
+	
+	private class EdgeHolder {
+		void update(EdgeLink link) {
+			if ((link != null) && (link == current))
+				current = current.next;
+		}
+		
+		EdgeLink current;
+	}
 	
 	private static final byte WRITABLE_TYPE_ID = 1;
 	
@@ -770,8 +842,8 @@ public class MRVertex {
 	private static final String FORMAT_EDGES_TO = "t";
 	private static final String FORMAT_EDGES_TO_FROM = "b";
 
-	protected static final String SEPARATOR = ";";
-	protected static final String EDGE_SEPARATOR = ",";
+	private static final String SEPARATOR = ";";
+	private static final String EDGE_SEPARATOR = ",";
 	
 	private static final int INDEX_EDGES_TO = 0;
 	private static final int INDEX_EDGES_FROM = 1;
@@ -780,4 +852,5 @@ public class MRVertex {
 	private Configuration config;
 	private byte flags;
 	private EdgeLink[] edges;
+	private ArrayList<WeakReference<EdgeHolder>> iterators;
 }

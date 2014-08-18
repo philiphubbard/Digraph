@@ -22,7 +22,9 @@
 
 package com.philiphubbard.digraph;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 // An abstract base class for a directed graph.
 // This class is a generic, parameterized by the edge class.
@@ -40,8 +42,11 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	public Digraph(int vertexCapacity, EdgeMultiples multiples) {
 		allowMultiples = (multiples == EdgeMultiples.ENABLED);
 		edges = new ArrayList<EdgeLink>(vertexCapacity);
-		for (int i = 0; i < vertexCapacity; i++)
+		iterators = new ArrayList<ArrayList<WeakReference<EdgeHolder>>>(vertexCapacity);
+		for (int i = 0; i < vertexCapacity; i++) {
 			edges.add(null);
+			iterators.add(null);
+		}
 	}
 	
 	public static final int NO_VERTEX = -1;
@@ -71,7 +76,7 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	// the specified vertex.  It can be used in a loop like the following:
 	// "for (Edge e = iterator.begin(); !iterator.done(); e = iterator.next())"
 	
-	public class AdjacencyIterator  {
+	public class AdjacencyIterator extends EdgeHolder {
 		
 		// Returns the first edge in the iteration.
 		
@@ -101,11 +106,21 @@ public abstract class Digraph<E extends Digraph.Edge> {
 			this.graph = graph;
 			this.from = from;
 			current = null;
+			
+			if (graph.iterators.get(from) == null) {
+				graph.iterators.set(from, new ArrayList<WeakReference<EdgeHolder>>());
+			}
+			else {
+				// Since there is no automatic removal of weak references to iterators
+				// that have become null, now is a reasonable time to try explicit removal.
+				
+				cleanupIterators(from);
+			}
+			graph.iterators.get(from).add(new WeakReference<EdgeHolder>(this));
 		}
 		
 		private Digraph<E> graph;
 		private int from;
-		private EdgeLink current;
 	}
 	
 	// A derived class must define this function to create the iterator
@@ -120,7 +135,7 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	// It can be used in a loop like the following:
 	// "for (Edge e = iterator.begin(); !iterator.done(); e = iterator.next())"
 	
-	public class AdjacencyMultipleIterator  {
+	public class AdjacencyMultipleIterator extends EdgeHolder {
 		// Returns the first list of edges to a common vertex in the iteration.
 		
 		public ArrayList<E> begin() {
@@ -149,6 +164,17 @@ public abstract class Digraph<E extends Digraph.Edge> {
 			this.graph = graph;
 			this.from = from;
 			current = null;
+			
+			if (graph.iterators.get(from) == null) {
+				graph.iterators.set(from, new ArrayList<WeakReference<EdgeHolder>>());
+			}
+			else {
+				// Since there is no automatic removal of weak references to iterators
+				// that have become null, now is a reasonable time to try explicit removal.
+				
+				cleanupIterators(from);
+			}
+			graph.iterators.get(from).add(new WeakReference<EdgeHolder>(this));
 		}
 		
 		private ArrayList<E> matchingEdges() {
@@ -163,10 +189,9 @@ public abstract class Digraph<E extends Digraph.Edge> {
 			} while ((next != null) && (next.edge.getTo() == current.edge.getTo()));
 			return result;			
 		}
-		
+
 		private Digraph<E> graph;
 		private int from;
-		private EdgeLink current;
 	}
 	
 	// A derived class must define this function to create the iterator
@@ -224,6 +249,14 @@ public abstract class Digraph<E extends Digraph.Edge> {
 		EdgeLink prev = null;
 		while (link != null) {
 			if (link.edge.getTo() == to) {
+				// Update iterators that might be referring to the EdgeLink
+				// that is about to be removed.
+
+				cleanupIterators(from);
+				ArrayList<WeakReference<EdgeHolder>> its = iterators.get(from);
+				for (WeakReference<EdgeHolder> ref : its)
+					ref.get().update(link);
+
 				if (prev != null)
 					prev.next = link.next;
 				else
@@ -237,8 +270,6 @@ public abstract class Digraph<E extends Digraph.Edge> {
 					int outDegree = outDegrees.get(from);
 					outDegrees.set(from, (outDegree != -1) ? outDegree - 1 : 0);
 				}
-
-				// TODO: Invalidate iterators.
 				
 				break;
 			}
@@ -322,17 +353,46 @@ public abstract class Digraph<E extends Digraph.Edge> {
 		}
 	}
 	
+	// Since there is no automatic removal of weak references to iterators
+	// that have become null, this routine forces explicit removal.
+	
+	private void cleanupIterators(int vertex) {
+		Iterator<WeakReference<EdgeHolder>> it = iterators.get(vertex).iterator();
+		while (it.hasNext()) {
+			WeakReference<EdgeHolder> ref = it.next();
+			if (ref.get() == null)
+				it.remove();
+		}
+	}
+	
 	private class EdgeLink {
-		public EdgeLink(E edge, EdgeLink next) {
+		EdgeLink(E edge, EdgeLink next) {
 			this.edge = edge;
 			this.next = next;
 		}
-		public E edge;
-		public EdgeLink next;
+		
+		E edge;
+		EdgeLink next;
+	}
+	
+	// A base class for classes that hold references to edges, like iterators.
+	// Since the referred edge may be removed, this class can be updated to
+	// advance past the removed edge.  This base class makes it simpler to
+	// maintain a list of weak references to every instance that could need
+	// to be updated.
+	
+	private class EdgeHolder {
+		void update(EdgeLink link) {
+			if ((link != null) && (link == current))
+				current = current.next;
+		}
+		
+		EdgeLink current;
 	}
 	
 	private boolean allowMultiples;
 	private ArrayList<EdgeLink> edges;
 	private ArrayList<Integer> inDegrees;
 	private ArrayList<Integer> outDegrees;
+	private ArrayList<ArrayList<WeakReference<EdgeHolder>>> iterators;
 }
