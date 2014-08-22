@@ -22,8 +22,8 @@
 
 package com.philiphubbard.digraph;
 
-import java.util.ArrayList;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 
 // Confidence tests for the EulerPaths class.
 // Uses assert(), so must be run with a run configuration that includes "-ea" in the 

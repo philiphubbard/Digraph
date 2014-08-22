@@ -56,6 +56,8 @@ public class MRVertex {
 	}
 	
 	// Constructor, building the vertex from a Hadoop Writable instance.
+	// If the BytesWritable is truncated, this constructor reads and
+	// constructs as much as much as possible, without indicating an error.
 	
 	public MRVertex(BytesWritable writable, Configuration config) {
 		this.config = config;
@@ -92,7 +94,7 @@ public class MRVertex {
 			fromWritableInternal(array, i, numBytesInternal);
 
 		iterators = new ArrayList<WeakReference<EdgeHolder>>();
-}
+	}
 	
 	// The vertex's identifier.
 	
@@ -708,12 +710,18 @@ public class MRVertex {
 	
 	private int putShort(short value, byte[] array, int i) {
 		// 16 bits
+		if (i + 2 > array.length)
+			return i;
+		
 		array[i] = (byte) ((value & 0xff00) >>> 8);
 		array[i+1] = (byte) (value & 0xff);
 		return i + 2;
 	}
 	
 	private short getShort(byte[] array, int i) {
+		if (i + 2 > array.length)
+			return Short.MIN_VALUE;
+		
 		short result = 0;
 		result |= (array[i] << 8);
 		result |= array[i+1];
@@ -722,6 +730,9 @@ public class MRVertex {
 	
 	private int putInt(int value, byte[] array, int i) {
 		// 32 bits
+		if (i + 4 > array.length)
+			return i;
+		
 		array[i] = (byte) ((value & 0xff000000) >>> 24);
 		array[i+1] = (byte) ((value & 0xff0000) >>> 16);
 		array[i+2] = (byte) ((value & 0xff00) >>> 8);
@@ -730,6 +741,9 @@ public class MRVertex {
 	}
 	
 	private int getInt(byte[] array, int i) {
+		if (i + 4 > array.length)
+			return Integer.MIN_VALUE;
+		
 		int result = 0;
 		result |= ((0xff & ((int) array[i])) << 24);
 		result |= ((0xff & ((int) array[i+1])) << 16);
@@ -739,6 +753,9 @@ public class MRVertex {
 	}
 	
 	private void addEdge(int vertex, int which) throws IllegalArgumentException {
+		if (vertex < 0)
+			return;
+		
 		boolean allowEdgeMultiples = config.getBoolean(CONFIG_ALLOW_EDGE_MULTIPLES, false);
 		
 		// Keep edges sorted by getTo() to improve average-case performance

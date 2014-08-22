@@ -22,9 +22,9 @@
 
 package com.philiphubbard.digraph;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Stack;
-import java.util.ArrayDeque;
 
 // Find the Euler tours in a directed graph, that is, the paths that visit
 // each edge in a connected component once.  Uses the classic algorithm

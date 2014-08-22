@@ -30,10 +30,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.BytesWritable;
-
-import com.philiphubbard.digraph.MRVertex;
+import org.apache.hadoop.io.Text;
 
 public class MRVertexTest {
 
@@ -41,6 +39,7 @@ public class MRVertexTest {
 		try {
 			testBasic();
 			testSubclass();
+			testError();
 		}
 		catch (IOException exception) {
 			System.out.println(exception.getMessage());
@@ -462,19 +461,19 @@ public class MRVertexTest {
 		v30.removeEdgeTo(32);
 		
 		int to30a = 0;
-		for (int to; !toIt30a.done(); to = toIt30a.next()) {
+		for (; !toIt30a.done(); toIt30a.next()) {
 			to30a++;
 		}
 		assert (to30a == 4);
 		
 		int to30b = 0;
-		for (int to; !toIt30b.done(); to = toIt30b.next()) {
+		for (; !toIt30b.done(); toIt30b.next()) {
 			to30b++;
 		}
 		assert (to30b == 3);
 
 		int to30c = 0;
-		for (int to; !toIt30c.done(); to = toIt30c.next()) {
+		for (; !toIt30c.done(); toIt30c.next()) {
 			to30c++;
 		}
 		assert (to30c == 3);
@@ -594,4 +593,32 @@ public class MRVertexTest {
 		System.out.println("MRVertex (subclassing) passed.");
 	}
 	
+	private static void testError() throws IOException {
+		Configuration config = new Configuration();
+
+		MRVertex v = new MRVertex(0, config);
+		v.addEdgeTo(1);
+		v.addEdgeTo(2);
+		v.addEdgeFrom(3);
+		
+		BytesWritable bw = v.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
+		byte b[] = bw.getBytes();
+		byte bTrunc[] = new byte[b.length / 2];
+		for (int i = 0; i < bTrunc.length; i++)
+			bTrunc[i] = b[i];
+		BytesWritable bwTrunc = new BytesWritable(bTrunc);
+		
+		MRVertex vTrunc = new MRVertex(bwTrunc, config);
+		
+		int numEdges = 0;
+		MRVertex.AdjacencyIterator it = vTrunc.createToAdjacencyIterator();
+		for (it.begin(); !it.done(); it.next())
+			numEdges++;
+		it = vTrunc.createFromAdjacencyIterator();
+		for (it.begin(); !it.done(); it.next())
+			numEdges++;
+		
+		assert (numEdges != 3);
+	}
+
 }

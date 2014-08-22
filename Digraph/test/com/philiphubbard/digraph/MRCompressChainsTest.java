@@ -25,8 +25,6 @@ package com.philiphubbard.digraph;
 // A sample driver application for running the MRCompressChains class
 // with Hadoop.
 
-import com.philiphubbard.digraph.MRCompressChains;
-
 import java.util.ArrayList;
 import java.io.IOException; 
 
@@ -34,14 +32,15 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.mapreduce.Job;
 
 public class MRCompressChainsTest {
 	
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args)			
+			throws IOException, ClassNotFoundException, InterruptedException {
 		Configuration conf = new Configuration();
 		
 		setupTest(conf);

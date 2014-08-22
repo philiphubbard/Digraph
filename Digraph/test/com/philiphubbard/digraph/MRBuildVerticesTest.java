@@ -39,11 +39,10 @@ import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 
-import com.philiphubbard.digraph.MRBuildVertices;
-
 public class MRBuildVerticesTest {
 
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) 
+			throws IOException, ClassNotFoundException, InterruptedException {
 		Configuration conf = new Configuration();
 
 		setupTest(conf);
