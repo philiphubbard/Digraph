@@ -43,6 +43,9 @@ public class MRVertex {
 	
 	public static final String CONFIG_ALLOW_EDGE_MULTIPLES = "ALLOW_EDGE_MULTIPLES";
 	
+	public static final String CONFIG_COMPRESS_CHAIN_MULTIPLES_MUST_MATCH = 
+			"CONFIG_COMPRESS_CHAIN_MULTIPLES_MUST_MATCH";
+	
 	// Constructor, specifying the identifier for this vertex.
 	
 	public MRVertex(int id, Configuration config) {
@@ -491,15 +494,20 @@ public class MRVertex {
 		Tail otherTail = other.getTail();
 		if (otherTail.id == NO_VERTEX)
 			return false;
-		if (tail.count != otherTail.count)
+		
+		boolean multiplesMustMatch = 
+				config.getBoolean(CONFIG_COMPRESS_CHAIN_MULTIPLES_MUST_MATCH, false);
+		if (multiplesMustMatch && (tail.count != otherTail.count))
 			return false;
+		
+		int count = (tail.count < otherTail.count) ? tail.count : otherTail.count;
 		
 		compressChainInternal(other, config);
 		
 		edges[INDEX_EDGES_TO] = null;
 		edges[INDEX_EDGES_FROM] = null;		
 		
-		for (int i = 0; i < tail.count; i++)
+		for (int i = 0; i < count; i++)
 			addEdge(otherTail.id, INDEX_EDGES_TO);
 		
 		return true;
