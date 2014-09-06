@@ -22,8 +22,7 @@
 
 package com.philiphubbard.digraph;
 
-// A sample driver application for running the MRCompressChains class
-// with Hadoop.
+// A sample driver application for running the MRCompressChains class with Hadoop.
 
 import java.util.ArrayList;
 import java.io.IOException; 

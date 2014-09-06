@@ -166,8 +166,8 @@ public class EulerPathsTest {
 		for (int v : path) {
 			pathVertexCounts[v]++;
 			
-			// Also verify that vertex 2 is visited only as part of edge 1-2,
-			// and vertex 4 as part of edge 3-4.
+			// Also verify that vertex 2 is visited only as part of edge 1->2,
+			// and vertex 4 as part of edge 3->4.
 
 			if (v == 2)
 				assert (vPrev == 1);

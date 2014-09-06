@@ -24,18 +24,32 @@ package com.philiphubbard.digraph;
 
 import java.util.ArrayList;
 
+// A directed graph with edges that have weights.
 
-// A simple directed graph, whose edges just store the index of the vertex
-// pointed to.
-
-public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
+public class WeightedDigraph extends Digraph<WeightedDigraph.Edge> {
 	
-	// A simple edge, recording the vertex being pointed to.
+	// A weighted edge.
 	
 	public static class Edge extends Digraph.Edge {
 		public Edge(int to) {
 			super(to);
+			weight = 0;
 		}
+		
+		public Edge(int to, float weight) {
+			super(to);
+			this.weight = weight;
+		}
+		
+		public float getWeight() {
+			return weight;
+		}
+		
+		public void setWeight(float weight) {
+			this.weight = weight;
+		}
+		
+		private float weight;
 	}
 	
 	// Constructor.  Vertices can be added with indices in the range
@@ -43,7 +57,7 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 	// specifies whether the graph can have more than one edge between
 	// a pair of vertices or not.
 	
-	public BasicDigraph(int vertexCapacity, EdgeMultiples multiples) {
+	public WeightedDigraph(int vertexCapacity, EdgeMultiples multiples) {
 		super(vertexCapacity, multiples);
 	}
 	
@@ -59,7 +73,7 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 	// "for (Edge e = iterator.begin(); !iterator.done(); e = iterator.next())"
 	
 	public class AdjacencyIterator 
-		extends Digraph<BasicDigraph.Edge>.AdjacencyIterator {
+		extends Digraph<WeightedDigraph.Edge>.AdjacencyIterator {
 		
 		@Override
 		public Edge begin() {
@@ -71,7 +85,7 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 			return super.next();
 		}
 
-		protected AdjacencyIterator(BasicDigraph graph, int from) {
+		protected AdjacencyIterator(WeightedDigraph graph, int from) {
 			super(graph, from);
 		}
 	}
@@ -82,7 +96,7 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 	public AdjacencyIterator createAdjacencyIterator(int from) 
 			throws IndexOutOfBoundsException {
 		if ((from < 0) || (getVertexCapacity() <= from))
-			throw new IndexOutOfBoundsException("BasicDigraph.createAdjacencyIterator() " +
+			throw new IndexOutOfBoundsException("WeightedDigraph.createAdjacencyIterator() " +
 											    "vertex out of range");
 		return new AdjacencyIterator(this, from);
 	}
@@ -93,7 +107,7 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 	// "for (ArrayList<Edge> e = iterator.begin(); !iterator.done(); e = iterator.next())"
 	
 	public class AdjacencyMultipleIterator 
-		extends Digraph<BasicDigraph.Edge>.AdjacencyMultipleIterator {
+		extends Digraph<WeightedDigraph.Edge>.AdjacencyMultipleIterator {
 		
 		@Override
 		public ArrayList<Edge> begin() {
@@ -104,8 +118,8 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 		public ArrayList<Edge> next() {
 			return super.next();
 		}
-
-		protected AdjacencyMultipleIterator(BasicDigraph graph, int from) {
+		
+		protected AdjacencyMultipleIterator(WeightedDigraph graph, int from) {
 			super(graph, from);
 		}
 	}
@@ -117,7 +131,7 @@ public class BasicDigraph extends Digraph<BasicDigraph.Edge> {
 	public AdjacencyMultipleIterator createAdjacencyMultipleIterator(int from) 
 			throws IndexOutOfBoundsException {
 		if ((from < 0) || (getVertexCapacity() <= from))
-			throw new IndexOutOfBoundsException("BasicDigraph.createAdjacencyIterator() " +
+			throw new IndexOutOfBoundsException("WeightedDigraph.createAdjacencyIterator() " +
 											    "vertex out of range");
 		return new AdjacencyMultipleIterator(this, from);
 	}

@@ -33,7 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.BytesWritable;
 
-// A directed-graph vertex for use with Hadoop map-reduce algorithms.
+// A directed-graph vertex for use with Hadoop map-reduce (MR) algorithms.
 // To support the distributed nature of map-reduce algorithms, this vertex
 // is not part of a global graph (like a Digraph<E> instance) but instead
 // keeps its own record of its adjacent vertices, and can read and write
@@ -41,12 +41,66 @@ import org.apache.hadoop.io.BytesWritable;
 
 public class MRVertex {
 	
+	// Use this property with hadoop.conf.Configuration.setBoolean() to 
+	// enable edge multiples (multiple edges to or from the same vertex) 
+	// in MRVertex instances.  By default, edge multiples are disabled.
+	
 	public static final String CONFIG_ALLOW_EDGE_MULTIPLES = "ALLOW_EDGE_MULTIPLES";
+	
+	// Use this property with hadoop.conf.Configuration.setBoolean() to 
+	// specify that MRVertex.compressChain() is allowed to compress Vi+1
+	// into Vi even if the number of edge multiples from Vi to Vi+1
+	// does not match the number of edge multiples from Vi+1 to Vi+2.  
+	// By default, this behavior is disabled.
 	
 	public static final String CONFIG_COMPRESS_CHAIN_MULTIPLES_MUST_MATCH = 
 			"CONFIG_COMPRESS_CHAIN_MULTIPLES_MUST_MATCH";
 	
-	// Constructor, specifying the identifier for this vertex.
+	//
+	
+	// Returns true if the BytesWritable describes an MRVertex, without actually
+	// reconstructing the MREdge.
+	
+	public static boolean getIsMRVertex(BytesWritable writable) {
+		byte[] array = writable.getBytes();
+		return (array[0] == WRITABLE_TYPE_ID);
+	}
+	
+	// Returns true if the BytesWritable describes an MRVertex that is a branch
+	// (it has edges from more than one distinct vertex, or to more than one
+	// distinct vertex), without actually reconstructing the MRVertex.
+	
+	public static boolean getIsBranch(BytesWritable writable) {
+		if (!getIsMRVertex(writable))
+			return false;
+		return ((getFlags(writable) & FLAG_IS_BRANCH) != 0);
+	}
+	
+	// Returns true if the BytesWritable describes an MRVertex that is a source
+	// (no edges from other vertices point to it), without actually reconstructing
+	// the MRVertex.
+	
+	public static boolean getIsSource(BytesWritable writable) {
+		if (!getIsMRVertex(writable))
+			return false;
+		return ((getFlags(writable) & FLAG_IS_SOURCE) != 0);
+	}
+	
+	// Returns true if the BytesWritable describes an MRVertex that is a source
+	// (it has no edges pointing to other vertices), without actually reconstructing
+	// the MRVertex.
+	
+	public static boolean getIsSink(BytesWritable writable) {
+		if (!getIsMRVertex(writable))
+			return false;
+		return ((getFlags(writable) & FLAG_IS_SINK) != 0);
+	}
+	
+	//
+	
+	// Construct a vertex with the specified ID (index).  The Configuration is
+	// stored with the vertex to provide access to properties (like whether edge
+	// multiples are enabled).
 	
 	public MRVertex(int id, Configuration config) {
 		this.id = id;
@@ -58,9 +112,10 @@ public class MRVertex {
 		iterators = new ArrayList<WeakReference<EdgeHolder>>();
 	}
 	
-	// Constructor, building the vertex from a Hadoop Writable instance.
-	// If the BytesWritable is truncated, this constructor reads and
-	// constructs as much as much as possible, without indicating an error.
+	// Construct a vertex from the hadoop.io.BytesWritable.  The Configuration is
+	// stored with the vertex to provide access to properties (like whether edge
+	// multiples are enabled).  If the BytesWritable is truncated, this constructor 
+	// reads and constructs as much as much as possible, without indicating an error.
 	
 	public MRVertex(BytesWritable writable, Configuration config) {
 		this.config = config;
@@ -109,15 +164,12 @@ public class MRVertex {
 	
 	public static final int NO_VERTEX = -1;
 	
-	// Write this vertex to a Hadoop Text (Writable) instance.
-	// The format argument specifies whether to write only the edges
-	// pointing to other vertices from this vertex, or to write both
-	// those edges and the edges pointing from other vertices to this
-	// vertex.
+	// Write this vertex to a hadoop.io.BytesWritabe instance.  The format argument 
+	// specifies whether to write only the edges pointing to other vertices from 
+	// this vertex, or to write both those edges and the edges pointing from other 
+	// vertices to this vertex.
 
 	public enum EdgeFormat { EDGES_TO, EDGES_TO_FROM };
-	
-	public enum WritableFormat { VALUE, VALUE_LINE, KEY_VALUE_LINE }
 	
 	public BytesWritable toWritable(EdgeFormat edgeFormat) throws IOException {
 		short numEdgesTo = 0;
@@ -203,6 +255,8 @@ public class MRVertex {
 	}
 	
 	// Remove an edge that points to the specified vertex from this vertex.
+	// If there are any iterators that are currently at the removed edge,
+	// they will be advanced automatically.
 	
 	public void removeEdgeTo(int to) {
 		removeEdge(to, INDEX_EDGES_TO);
@@ -217,6 +271,8 @@ public class MRVertex {
 	}
 	
 	// Remove an edge that points from the specified vertex to this vertex.
+	// If there are any iterators that are currently at the removed edge,
+	// they will be advanced automatically.
 	
 	public void removeEdgeFrom(int from) {
 		removeEdge(from, INDEX_EDGES_FROM);
@@ -230,12 +286,17 @@ public class MRVertex {
 			computeIsSourceSink();
 	}
 	
+	// Add the edge represented by the MREdge.  Silently does nothing if the
+	// MREdge does not point from or to this vertex.
+	
 	public void addEdge(MREdge edge) {
 		if (edge.getTo() == getId())
 			addEdgeFrom(edge.getFrom());
 		else if (edge.getFrom() == getId())
 			addEdgeTo(edge.getTo());
 	}
+	
+	//
 	
 	// An iterator over vertices adjacent to a MRVertex.
 	// An iterator is created by the createFromAdjacencyIterator() or
@@ -377,8 +438,9 @@ public class MRVertex {
 	
 	//
 	
-	// The compute...() routines must be called for the get...() routines to be accurate.
-	// Even then, they may not stay accurate, given the distributed nature of the graph.
+	// The compute...() routines must be called for the corresponding get...() routines 
+	// (see below) to be accurate. Even then, they may not stay accurate, given the 
+	// distributed nature of the graph.
 	
 	public void computeIsBranch() {
 		flags &= ~FLAG_IS_BRANCH;
@@ -424,36 +486,33 @@ public class MRVertex {
 			flags |= FLAG_IS_SINK;
 	}
 	
+	// Returns true if this vertex has been marked as being a branch
+	// (it has edges from more than one distinct vertex, or to more than one
+	// distinct vertex) by computeIsBranch().
+	
 	public boolean getIsBranch() {
 		return ((flags & FLAG_IS_BRANCH) != 0);
 	}
 
+	// Returns true if this vertex has been marked as being a source
+	// (no edges from other vertices point to it) by computeIsSource().
+	
 	public boolean getIsSource() {
 		return ((flags & FLAG_IS_SOURCE) != 0);
 	}
 
+	// Returns true if this vertex has been marked as being a sink
+	// (it has no edges pointing to other vertices) by computeIsSink().
+	
 	public boolean getIsSink() {
 		return ((flags & FLAG_IS_SINK) != 0);
 	}
 
-	public static boolean getIsMRVertex(BytesWritable writable) {
-		byte[] array = writable.getBytes();
-		return (array[0] == WRITABLE_TYPE_ID);
-	}
+	// 
 	
-	public static boolean getIsBranch(BytesWritable writable) {
-		return ((getFlags(writable) & FLAG_IS_BRANCH) != 0);
-	}
-	
-	public static boolean getIsSource(BytesWritable writable) {
-		return ((getFlags(writable) & FLAG_IS_SOURCE) != 0);
-	}
-	
-	public static boolean getIsSink(BytesWritable writable) {
-		return ((getFlags(writable) & FLAG_IS_SINK) != 0);
-	}
-	
-	//
+	// Returns a key to be used with compressChain() to either to compress this vertex 
+	// into its predecessor in a chain or to compress the successor of this vertex 
+	// into it.
 	
 	public int getCompressChainKey(Random random) {
 		Tail tail = getTail();
@@ -463,31 +522,19 @@ public class MRVertex {
 		return random.nextBoolean() ? to : getId();
 	}
 	
-	public static MRVertex compressChain(MRVertex v1, MRVertex v2, int key,
-			Configuration config) {
-		if (key != NO_VERTEX) {
-			if (key == v1.getId()) {
-				if (!v2.compressChain(v1, config))
-					return null;
-				else
-					return v2;
-			}
-			else if (key == v2.getId()) {
-				if (!v1.compressChain(v2, config))
-					return null;
-				else
-					return v1;
-			}
-		}
-		return null;
-	}
+	// Compress the other vertex into this vertex if they are part of the same chain.
+	// In other words, if this vertex has no edges pointing to vertices that are not
+	// the other vertex, then compression causes those edges to be replaced with edges
+	// corresponding to the other vertex's edges.  If compression is possible, then
+	// the virtual function compressChainInternal() is called to allow derived classes
+	// to compress their data.  Silently does nothing if compression is not possible,
+	// if the vertices are not on the same chain.  The Configuration property
+	// CONFIG_COMPRESS_CHAIN_MULTIPLES_MUST_MATCH also determines if the number of
+	// edges from this vertex to the other vertex must equal the number of edges
+	// from the other vertex to additional vertices in order for compression to be
+	// possible.
 	
-	// Note that after merging, it does not make sense to call toText()
-	// with FORMAT_EDGES_TO_FROM because there will be invalid data.
-	// E.g., if v1->v2, v2->v3, after merging v1 and v2, v3 will still
-	// record that it has an edge from v2. 
-	
-	public boolean compressChain(MRVertex other, Configuration config) {
+	public boolean compressChain(MRVertex other) {
 		Tail tail = getTail();
 		if (tail.id != other.getId())
 			return false;
@@ -496,7 +543,7 @@ public class MRVertex {
 			return false;
 		
 		boolean multiplesMustMatch = 
-				config.getBoolean(CONFIG_COMPRESS_CHAIN_MULTIPLES_MUST_MATCH, false);
+				config.getBoolean(CONFIG_COMPRESS_CHAIN_MULTIPLES_MUST_MATCH, true);
 		if (multiplesMustMatch && (tail.count != otherTail.count))
 			return false;
 		
@@ -513,6 +560,38 @@ public class MRVertex {
 		return true;
 	}
 	
+	// Perform compression on v1 and v2.  The result may be to compress v1 into v2,
+	// or v2 into v1, or do nothing, depending on the value of the key.  In the
+	// context of map-reduce, the key should have be a common value returned by
+	// calling getCompressChainKey() on both v1 and v2 (otherwise, compression may
+	// create non-optimal situations, like compressing V1 -> V2 -> V3 to V1 -> V3
+	// and V2 -> V3 -> V4 into V2 -> V4, which prevents the further compressions
+	// of that chain).
+	
+	public static MRVertex compressChain(MRVertex v1, MRVertex v2, int key) {
+		if (key != NO_VERTEX) {
+			if (key == v1.getId()) {
+				if (!v2.compressChain(v1))
+					return null;
+				else
+					return v2;
+			}
+			else if (key == v2.getId()) {
+				if (!v1.compressChain(v2))
+					return null;
+				else
+					return v1;
+			}
+		}
+		return null;
+	}
+	
+	// Merge the other vertex into this vertex.  Merging is distinct from compression.
+	// In merging, the two vertices involved must have the same ID, and the result is
+	// a vertex that has the union of the edges from the two vertices.  Merging makes
+	// sense in the a distributed algorithm that is combining partial representations
+	// of a single vertex into one complete representation.
+	
 	public void merge(MRVertex other) {
 		if (other.getId() == getId()) {
 			AdjacencyIterator itTo = other.createToAdjacencyIterator();
@@ -525,6 +604,9 @@ public class MRVertex {
 	}
 	
 	//
+	
+	// Returns true if the values of this vertex and the other vertex (not the references)
+	// are equal.
 	
 	public boolean equals(MRVertex other) {
 		if (id != other.id)
@@ -555,6 +637,8 @@ public class MRVertex {
 		return true;
 	}
 	
+	// Return a displayable (human readable) string representation of this vertex.
+	
 	public String toDisplayString() {
 		StringBuilder s = new StringBuilder();
 		
@@ -584,7 +668,8 @@ public class MRVertex {
 	
 	//
 	
-	// Text routines are for debugging only.
+	// The following routines for converting bewteen a hadoop.io.Text and a MRVertex are
+	// primarily for debugging purposes.
 	
 	public MRVertex(Text text, Configuration config) {
 		this(text.toString(), config);
@@ -628,6 +713,11 @@ public class MRVertex {
 		iterators = new ArrayList<WeakReference<EdgeHolder>>();
 	}
 	
+	// Note that after calling compressChain(), it does not make sense to call 
+	// toText() with FORMAT_EDGES_TO_FROM because there will be invalid data.
+	// E.g., if V1 -> V2, V2 -> V3, after compressing V2 into V1, V3 will still
+	// record that it has an edge from V2. 
+	
 	public Text toText(EdgeFormat edgeFormat) {
 		StringBuilder s = new StringBuilder();
 		
@@ -666,10 +756,25 @@ public class MRVertex {
 	
 	//
 	
+	// Returns the header flags from a the hadoop.io.BytesWritable
+	// representation of a MRVertex.
+	
 	protected static byte getFlags(BytesWritable writable) {
 		byte[] bytes = writable.getBytes();
 		return bytes[1];
 	}
+	
+	// A helper class for representing the "tail" of one edge in a chain,
+	// with the ID of the vertex pointed to by the edge and the number
+	// of edges pointing to it (assuming edge multiples are enabled).
+	
+	protected class Tail {
+		public final int id;
+		public final int count;
+		public Tail(int i, int c) { id = i; count = c; }
+	}
+	
+	// Get the tail of this vertex.
 	
 	protected Tail getTail() {
 		int tail = NO_VERTEX;
@@ -686,26 +791,31 @@ public class MRVertex {
 		return new Tail(tail, count);
 	}
 	
-	protected class Tail {
-		public final int id;
-		public final int count;
-		public Tail(int i, int c) { id = i; count = c; }
-	}
+	// A virtual function that can be overridden by derived classes to compress
+	// any special data during a compressChain() operation.
 	
 	protected void compressChainInternal(MRVertex other, Configuration config) {
 	}
+	
+	// A virtual function that can be overridden by derived classes to write
+	// any special data to the byte array used to make a hadoop.io.BytesWritable.
 	
 	protected byte[] toWritableInternal() {
 		return null;
 	}
 	
+	// A virtual function that can be overridden by derived classes to read
+	// any special data from the byte array retrieved from a hadoop.io.BytesWritable.
+	// The int arguments specify the start and length of the special data within
+	// the array.
 	
 	protected void fromWritableInternal(byte[] array, int i, int n) {
 	}
 	
 	//
 	
-	// For debugging only.
+	// For debugging only.  Derived classes can override these functions to 
+	// handle any special data.
 	
 	protected String toTextInternal() {
 		return null;
@@ -715,6 +825,10 @@ public class MRVertex {
 	}
 	
 	//
+	
+	// Put into the byte array an short, for using the byte array in
+	// a BytesWritable.  Returns the index at which to put the next part
+	// of the description.
 	
 	private int putShort(short value, byte[] array, int i) {
 		// 16 bits
@@ -726,6 +840,9 @@ public class MRVertex {
 		return i + 2;
 	}
 	
+	// Get from the byte array an int, for a byte array that came from
+	// a BytesWritable.
+	
 	private short getShort(byte[] array, int i) {
 		if (i + 2 > array.length)
 			return Short.MIN_VALUE;
@@ -735,6 +852,10 @@ public class MRVertex {
 		result |= array[i+1];
 		return result;
 	}
+	
+	// Put into the byte array an int, for using the byte array in
+	// a BytesWritable.  Returns the index at which to put the next part
+	// of the description.
 	
 	private int putInt(int value, byte[] array, int i) {
 		// 32 bits
@@ -748,6 +869,9 @@ public class MRVertex {
 		return i + 4;
 	}
 	
+	// Get from the byte array an int, for a byte array that came from
+	// a BytesWritable.
+	
 	private int getInt(byte[] array, int i) {
 		if (i + 4 > array.length)
 			return Integer.MIN_VALUE;
@@ -759,6 +883,10 @@ public class MRVertex {
 		result |= (0xff & ((int) array[i+3]));
 		return result;
 	}
+	
+	// Helper function to add an edge. Whether the edge points to or from the
+	// specified vertex is determined by the "which" argument, which is the
+	// index into the this.edges array.
 	
 	private void addEdge(int vertex, int which) throws IllegalArgumentException {
 		if (vertex < 0)
@@ -793,6 +921,11 @@ public class MRVertex {
 		else
 			prev.next = new EdgeLink(vertex, link);
 	}
+	
+	// Helper function to remove an edge. Whether the edge points to or from the
+	// specified vertex is determined by the "which" argument, which is the
+	// index into the this.edges array.  This routine updates any iterators whose
+	// current edge is the edge being removed.
 	
 	private void removeEdge(int vertex, int which) {
 		EdgeLink link = edges[which];
@@ -833,6 +966,8 @@ public class MRVertex {
 		}
 	}
 	
+	// Internal representation of an edge in a linked list of edges.
+	
 	private class EdgeLink {
 		EdgeLink(int vertex, EdgeLink next) {
 			this.vertex = vertex;
@@ -860,9 +995,19 @@ public class MRVertex {
 	
 	private static final byte WRITABLE_TYPE_ID = 1;
 	
+	// Masks for the hadoop.io.BytesWritable header.
+	
 	private static final byte FLAG_IS_BRANCH = 0x1;
 	private static final byte FLAG_IS_SOURCE = 0x2;
 	private static final byte FLAG_IS_SINK = 0x4;
+	
+	private int id;
+	private Configuration config;
+	private byte flags;
+	private EdgeLink[] edges;
+	private ArrayList<WeakReference<EdgeHolder>> iterators;
+	
+	// Constants associated with the hadoop.io.Text debugging routines.
 	
 	private static final String FORMAT_EDGES_TO = "t";
 	private static final String FORMAT_EDGES_TO_FROM = "b";
@@ -872,10 +1017,4 @@ public class MRVertex {
 	
 	private static final int INDEX_EDGES_TO = 0;
 	private static final int INDEX_EDGES_FROM = 1;
-
-	private int id;
-	private Configuration config;
-	private byte flags;
-	private EdgeLink[] edges;
-	private ArrayList<WeakReference<EdgeHolder>> iterators;
 }

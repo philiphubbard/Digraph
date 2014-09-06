@@ -405,7 +405,7 @@ public class MRVertexTest {
 		MRVertex.AdjacencyIterator toIt24 = v24.createToAdjacencyIterator();
 		assert (toIt24.done());
 		
-		MRVertex.compressChain(v20, v21, 21, config);
+		MRVertex.compressChain(v20, v21, 21);
 
 		MRVertex.AdjacencyIterator toIt20a = v20.createToAdjacencyIterator();
 		int to20a = 0;
@@ -415,7 +415,7 @@ public class MRVertexTest {
 		}
 		assert (to20a == 1);		
 
-		MRVertex.compressChain(v22, v23, 23, config);
+		MRVertex.compressChain(v22, v23, 23);
 
 		MRVertex.AdjacencyIterator toIt22a = v22.createToAdjacencyIterator();
 		int to22a = 0;
@@ -425,7 +425,7 @@ public class MRVertexTest {
 		}
 		assert (to22a == 1);		
 
-		MRVertex.compressChain(v20, v22, 22, config);
+		MRVertex.compressChain(v20, v22, 22);
 
 		MRVertex.AdjacencyIterator toIt20b = v20.createToAdjacencyIterator();
 		int to20b = 0;
@@ -497,6 +497,7 @@ public class MRVertexTest {
 			return extra;
 		}
 		
+		@Override
 		protected void compressChainInternal(MRVertex other, Configuration config) {
 			if (other instanceof MRVertexSubclass) {
 				MRVertexSubclass otherSubclass = (MRVertexSubclass) other;
@@ -504,12 +505,14 @@ public class MRVertexTest {
 			}
 		}
 		
+		@Override
 		protected byte[] toWritableInternal() {
 			byte[] result = new byte[1];
 			result[0] = extra;
 			return result;
 		}
 		
+		@Override
 		protected void fromWritableInternal(byte[] array, int i, int n) {
 			assert (n == 1);
 			extra = array[i];
@@ -587,7 +590,7 @@ public class MRVertexTest {
 		v5.addEdgeTo(6);
 		assert (v5.getExtra() == 11);
 		
-		v4.compressChain(v5, config);
+		v4.compressChain(v5);
 		assert (v4.getExtra() == 20);
 
 		System.out.println("MRVertex (subclassing) passed.");
@@ -603,6 +606,10 @@ public class MRVertexTest {
 		
 		BytesWritable bw = v.toWritable(MRVertex.EdgeFormat.EDGES_TO_FROM);
 		byte b[] = bw.getBytes();
+		
+		// Make a hadoop.io.BytesWritable that will have an error, because
+		// the byte array is truncated in half.
+		
 		byte bTrunc[] = new byte[b.length / 2];
 		for (int i = 0; i < bTrunc.length; i++)
 			bTrunc[i] = b[i];
@@ -618,7 +625,10 @@ public class MRVertexTest {
 		for (it.begin(); !it.done(); it.next())
 			numEdges++;
 		
+		// Verify that not all the edges were recovered, but at least no
+		// exception occurred.
+		
 		assert (numEdges != 3);
 	}
-
+	
 }

@@ -104,7 +104,7 @@ public class BasicDigraphTest {
 		assert (graph1.getInDegree(3) == 2);
 		assert (graph1.getOutDegree(3) == 0);
 		
-		//
+		// Verify that iterators get updated when their current edges are removed.
 		
 		BasicDigraph graph2 = new BasicDigraph(16, multiples);
 		
@@ -274,8 +274,8 @@ public class BasicDigraphTest {
 			numEdges3++;
 		assert (numEdges3 == 0);
 		
-		//
-		
+		// Verify that iterators get updated when their current edges are removed.
+				
 		BasicDigraph graph2 = new BasicDigraph(16, Digraph.EdgeMultiples.ENABLED);
 		
 		graph2.addEdge(0, new BasicDigraph.Edge(1));

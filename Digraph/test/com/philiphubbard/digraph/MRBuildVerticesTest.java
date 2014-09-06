@@ -22,8 +22,7 @@
 
 package com.philiphubbard.digraph;
 
-// A sample driver application for running the MRBuildVertices class
-// with Hadoop.
+// A sample driver application for running the MRBuildVertices class with Hadoop.
 
 import java.io.IOException;
 import java.util.ArrayList;

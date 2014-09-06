@@ -30,9 +30,11 @@ public class DigraphTest {
 
 	public static void main(String[] args) {
 		BasicDigraphTest.test();
+		WeightedDigraphTest.test();
 		EulerPathsTest.test();
 		StrongComponentsTest.test();
 		MRVertexTest.test();
+		MRCompressChainsAnalyze.analyze();
 	}
 
 }

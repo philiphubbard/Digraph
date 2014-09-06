@@ -26,6 +26,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Iterator;
 
+
 // An abstract base class for a directed graph.
 // This class is a generic, parameterized by the edge class.
 // Algorithms that do not need to add edges can work with this class' interface.
@@ -48,6 +49,8 @@ public abstract class Digraph<E extends Digraph.Edge> {
 			iterators.add(null);
 		}
 	}
+	
+	// A constant for an index that corresponds to no vertex.
 	
 	public static final int NO_VERTEX = -1;
 	
@@ -133,7 +136,7 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	// An iterator over the edges the pointing out from the specified vertex,
 	// returning multiple edges to the same destination vertex in an array.
 	// It can be used in a loop like the following:
-	// "for (Edge e = iterator.begin(); !iterator.done(); e = iterator.next())"
+	// "for (ArrayList<Edge> e = iterator.begin(); !iterator.done(); e = iterator.next())"
 	
 	public class AdjacencyMultipleIterator extends EdgeHolder {
 		// Returns the first list of edges to a common vertex in the iteration.
@@ -176,6 +179,9 @@ public abstract class Digraph<E extends Digraph.Edge> {
 			}
 			graph.iterators.get(from).add(new WeakReference<EdgeHolder>(this));
 		}
+		
+		// Return the edges matching the current edge (i.e., pointing to the
+		// same vertex).
 		
 		private ArrayList<E> matchingEdges() {
 			if (current == null)
@@ -240,11 +246,22 @@ public abstract class Digraph<E extends Digraph.Edge> {
 		return inDegrees.get(to);
 	}
 	
+	// Returns true if the specified vertex is a sink (i.e., it has
+	// no edges pointing to other vertices).
+	
 	public boolean isSink(int v) {
 		return (edges.get(v) == null);
 	}
 	
+	// Remove all edges from the specified vertex to the other vertex.
+	// Silently does nothing if either vertex does not exist or is
+	// out of range.
+
 	public void removeEdge(int from, int to) {
+		if ((from < 0) || (getVertexCapacity() <= from) ||
+				(to < 0) || (getVertexCapacity() <= to))
+			return;
+
 		EdgeLink link = edges.get(from);
 		EdgeLink prev = null;
 		while (link != null) {
@@ -282,6 +299,8 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	}
 	
 	//
+	
+	// Helper function for adding an edge.
 	
 	protected void addEdge(int from, E newEdge) {
 		if ((from < 0) || (edges.size() <= from))
@@ -324,6 +343,11 @@ public abstract class Digraph<E extends Digraph.Edge> {
 	
 	//
 	
+	// Helper function for computing and storing the in degree and out degree
+	// once for all vertices.  Since a vertex does not know the edges pointing
+	// to it, a loop over all vertices is needed to compute the degree for
+	// any one vertex, and it makes sense to store it for all vertices.
+	
 	private void cacheDegrees() {
 		if ((inDegrees != null) && (outDegrees != null))
 			return;
@@ -364,6 +388,8 @@ public abstract class Digraph<E extends Digraph.Edge> {
 				it.remove();
 		}
 	}
+	
+	// Internal representation of an edge, in a linked list of edges.
 	
 	private class EdgeLink {
 		EdgeLink(E edge, EdgeLink next) {

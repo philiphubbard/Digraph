@@ -24,17 +24,30 @@ package com.philiphubbard.digraph;
 
 import org.apache.hadoop.io.BytesWritable;
 
+
+// An edge in a directed graph for use with Hadoop map-reduce (MR) algorithms.
+// This class is not used by MRVertex to represent the vertex's edges, but can be used 
+// with MRVertex, to add a new edge to a MRVertex instance, for example.
+
 public class MREdge {
 
+	// Returns true if the BytesWritable describes an MREdge, without actually
+	// reconstructing the MREdge.
+	
 	public static boolean getIsMREdge(BytesWritable writable) {
 		byte [] bytes = writable.getBytes();
 		return (bytes[0] == WRITABLE_TYPE_ID);
 	}
 	
+	// Construct and edge from the specified vertex index to the specified 
+	// vertex index.
+	
 	public MREdge(int from, int to) {
 		this.from = from;
 		this.to = to;
 	}
+	
+	// Construct an edge from a BytesWritable.
 	
 	public MREdge(BytesWritable writable) {
 		byte [] bytes = writable.getBytes();
@@ -42,6 +55,8 @@ public class MREdge {
 		to = getInt(bytes, 5);
 	}
 
+	// Store an edge to a BytesWritable.
+	
 	public BytesWritable toWritable() {
 		int numBytes = 1 + 4 + 4;
 		byte[] result = new byte[numBytes];
@@ -53,18 +68,34 @@ public class MREdge {
 		return new BytesWritable(result);
 	}
 	
+	// Get the index of the vertex this edge points from.
+	
 	public int getFrom() {
 		return from;
 	}
+	
+	// Get the index of the vertex this edge poitns to.
 	
 	public int getTo() {
 		return to;
 	}
 	
+	//
+	
+	// Put into the byte array the header, for using the byte array in
+	// a BytesWritable.  Returns the index at which to put the next part
+	// of the description.
+	
 	protected int putHeader(byte[] array) {
 		array[0] = WRITABLE_TYPE_ID;
 		return 1;
 	}
+	
+	//
+	
+	// Put into the byte array an int, for using the byte array in
+	// a BytesWritable.  Returns the index at which to put the next part
+	// of the description.
 	
 	private int putInt(int value, byte[] array, int i) {
 		// 32 bits
@@ -74,6 +105,9 @@ public class MREdge {
 		array[i+3] = (byte) (value & 0xff);
 		return i + 4;
 	}
+	
+	// Get from the byte array an int, for a byte array that came from
+	// a BytesWritable.
 	
 	private int getInt(byte[] array, int i) {
 		int result = 0;

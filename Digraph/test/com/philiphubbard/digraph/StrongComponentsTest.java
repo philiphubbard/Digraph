@@ -54,6 +54,8 @@ public class StrongComponentsTest {
 
 		BasicDigraph graph = new BasicDigraph(13, Digraph.EdgeMultiples.ENABLED);
 		
+		// Add each edge three times.
+		
 		for (int i = 0; i < 3; i++)
 			addEdges(graph);
 		
