@@ -25,7 +25,7 @@ package com.philiphubbard.digraph;
 import org.apache.hadoop.io.BytesWritable;
 
 
-// An edge in a directed graph for use with Hadoop map-reduce (MR) algorithms.
+// An edge in a directed graph for use with Hadoop MapReduce (MR) algorithms.
 // This class is not used by MRVertex to represent the vertex's edges, but can be used 
 // with MRVertex, to add a new edge to a MRVertex instance, for example.
 

@@ -38,7 +38,7 @@ import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 
 
-// A mapper and reducer for a Hadoop map-reduce algorithm to build the vertices of a
+// A mapper and reducer for a Hadoop MapReduce algorithm to build the vertices of a
 // directed graph, optionally performing several operations on all the vertices:
 // * set the vertex representation, MRVertex, to include edges from other vertices
 //   in addition to the standard edges to other vertices;

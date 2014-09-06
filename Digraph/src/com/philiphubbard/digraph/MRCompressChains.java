@@ -38,7 +38,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 
 
-// A mapper and reducer for a Hadoop map-reduce algorithm to compress chains
+// A mapper and reducer for a Hadoop MapReduce algorithm to compress chains
 // of MRVertex instances, representing the vertices from a directed graph.  
 // A chain is a sequence of vertices, V0, V1, ..., VN, where Vi has edges
 // from only Vi-1 and to only Vi+1 (0 < i < N).  Compressing Vi+1 into Vi
@@ -55,7 +55,7 @@ import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 // allow compressing V1 -> V2 -> V3 into V1 -> V3 and V2 -> V3 -> V4 into
 // V2 -> V4, which prevents further compression).
 // 
-// In the map-reduce version of this randomized algorithm, the mapper gets
+// In the MapReduce version of this randomized algorithm, the mapper gets
 // a MRVertex as input and gets its output key from MRVertex.getCompressChainKey(),
 // which returns the index of the vertex itself or the vertex it points to
 // based on the random boolean value.  The reducer will get Vi and Vi+1 only if

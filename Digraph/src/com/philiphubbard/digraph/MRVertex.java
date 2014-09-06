@@ -33,8 +33,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.BytesWritable;
 
-// A directed-graph vertex for use with Hadoop map-reduce (MR) algorithms.
-// To support the distributed nature of map-reduce algorithms, this vertex
+// A directed-graph vertex for use with Hadoop MapReduce (MR) algorithms.
+// To support the distributed nature of MapReduce algorithms, this vertex
 // is not part of a global graph (like a Digraph<E> instance) but instead
 // keeps its own record of its adjacent vertices, and can read and write
 // this information from and to a Hadoop Writable instance.
@@ -562,7 +562,7 @@ public class MRVertex {
 	
 	// Perform compression on v1 and v2.  The result may be to compress v1 into v2,
 	// or v2 into v1, or do nothing, depending on the value of the key.  In the
-	// context of map-reduce, the key should have be a common value returned by
+	// context of MapReduce, the key should have be a common value returned by
 	// calling getCompressChainKey() on both v1 and v2 (otherwise, compression may
 	// create non-optimal situations, like compressing V1 -> V2 -> V3 to V1 -> V3
 	// and V2 -> V3 -> V4 into V2 -> V4, which prevents the further compressions
