@@ -1,6 +1,6 @@
 # A .gitignore file for Eclipse projects.
 # From github.com/github/gitignore/blob/master/Global/Eclipse.gitignore
-# Added .classpath and .project
+# Added .classpath and .project and .DS_Store
 
 *.pydevproject
 .metadata
@@ -32,4 +32,4 @@ local.properties
 
 .classpath
 .project
-
+.DS_Store
